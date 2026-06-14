@@ -459,8 +459,13 @@ local function scanShop(guiName, dbList)
                 if grandParent and grandParent.Name == "ItemTemplate" then continue end
 
                 local name = v.Text:gsub("^%s+",""):gsub("%s+$","")
-                if name=="" or seen[name] then continue end
-                seen[name] = true
+
+if name == "Carrot Seed" or name == "Jump Mushroom" then
+    continue
+end
+
+if name=="" or seen[name] then continue end
+seen[name] = true
 
                 local parent    = v.Parent
                 local costLbl   = parent and parent:FindFirstChild("Cost_Text")
