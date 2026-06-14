@@ -1,7 +1,7 @@
 -- ╔═══════════════════════════════════════════════════════════════╗
--- ║     Grow A Garden 2 Stock v7                                  ║
+-- ║     Grow A Garden 2 Stock v8                                  ║
 -- ║     Auto Stock Reporter + Discord Notifier                    ║
--- ║     Seeds · Gear · Crates · Weather                           ║
+-- ║     Seeds · Gear · Crates · Weather · Pets                    ║
 -- ╚═══════════════════════════════════════════════════════════════╝
 
 local Players          = game:GetService("Players")
@@ -15,7 +15,7 @@ local pg               = lp:WaitForChild("PlayerGui")
 if pg:FindFirstChild("GAG2StockHub") then pg:FindFirstChild("GAG2StockHub"):Destroy() end
 
 -- ══════════════════════════════════════════════
--- ROLE PINGS (weather only)
+-- WEATHER ROLE PINGS
 -- ══════════════════════════════════════════════
 local WEATHER_ROLE_PINGS = {
     ["Bloodmoon"] = "<@&1515606946948972645>",
@@ -28,6 +28,44 @@ local WEATHER_ROLE_PINGS = {
     ["Night"]     = "",
 }
 
+-- ══════════════════════════════════════════════
+-- PET ROLE PINGS
+-- Only pings when these specific pets spawn
+-- Leave as "" to not ping for that pet
+-- ══════════════════════════════════════════════
+local PET_ROLE_PINGS = {
+    ["Raccoon"]       = "<@&YOUR_ROLE_ID>",
+    ["Robin"]         = "<@&YOUR_ROLE_ID>",
+    ["Deer"]          = "<@&YOUR_ROLE_ID>",
+    ["Owl"]           = "<@&YOUR_ROLE_ID>",
+    ["Bee"]           = "<@&YOUR_ROLE_ID>",
+    ["Bunny"]         = "<@&YOUR_ROLE_ID>",
+    ["Frog"]          = "<@&YOUR_ROLE_ID>",
+    ["GoldenDragonfly"] = "<@&YOUR_ROLE_ID>",
+    ["Dragonfly"]     = "<@&YOUR_ROLE_ID>",
+    ["Monkey"]        = "<@&YOUR_ROLE_ID>",
+    ["BlackDragon"]   = "<@&YOUR_ROLE_ID>",
+    ["Unicorn"]       = "<@&YOUR_ROLE_ID>",
+    ["IceSerpent"]    = "<@&YOUR_ROLE_ID>",
+}
+
+-- Pet emojis for display
+local PET_EMOJI = {
+    ["Raccoon"]         = "🦝",
+    ["Robin"]           = "🐦",
+    ["Deer"]            = "🦌",
+    ["Owl"]             = "🦉",
+    ["Bee"]             = "🐝",
+    ["Bunny"]           = "🐰",
+    ["Frog"]            = "🐸",
+    ["GoldenDragonfly"] = "✨",
+    ["Dragonfly"]       = "🪲",
+    ["Monkey"]          = "🐒",
+    ["BlackDragon"]     = "🐉",
+    ["Unicorn"]         = "🦄",
+    ["IceSerpent"]      = "🐍",
+}
+
 local EXCLUDED_ITEMS = {
     ["Carrot Seed"]   = true,
     ["Jump Mushroom"] = true,
@@ -35,16 +73,25 @@ local EXCLUDED_ITEMS = {
 -- ══════════════════════════════════════════════
 
 local WEBHOOK_FILE      = "gag2_webhook.txt"
+local PET_WEBHOOK_FILE  = "gag2_pet_webhook.txt"
 local WEBHOOK_URL       = ""
+local PET_WEBHOOK_URL   = ""
 local AUTO_ENABLED      = true
 local AUTO_INTERVAL     = 30
 local lastStockSnapshot = {}
 local lastWeather       = {}
 local sentWeatherPings  = {}
+local activePets        = {} -- tracks currently spawned pets
+local sentPetPings      = {} -- prevents duplicate pet pings
 
 pcall(function()
     if isfile and isfile(WEBHOOK_FILE) then
         WEBHOOK_URL = readfile(WEBHOOK_FILE):gsub("%s+","")
+    end
+end)
+pcall(function()
+    if isfile and isfile(PET_WEBHOOK_FILE) then
+        PET_WEBHOOK_URL = readfile(PET_WEBHOOK_FILE):gsub("%s+","")
     end
 end)
 
@@ -94,7 +141,6 @@ local RI = {
     Super=16737280, Event=16711935,
 }
 local TIER_ORDER = {"Super","Mythic","Legendary","Epic","Event","Rare","Uncommon","Common"}
-local RARE_TIERS = {Epic=true,Legendary=true,Mythic=true,Super=true,Event=true}
 
 local function normalizeRarity(r)
     if not r or r=="" then return "Common" end
@@ -114,10 +160,8 @@ local WEATHER_COLOR = {
 }
 
 -- ══════════════════════════════════════════════════════════════════
--- ITEM DATABASES (updated from wiki + image)
+-- ITEM DATABASES
 -- ══════════════════════════════════════════════════════════════════
-
--- Crop/seed emojis for Discord display
 local SEED_EMOJI = {
     ["Carrot"]="🥕", ["Strawberry"]="🍓", ["Blueberry"]="🫐",
     ["Tulip"]="🌷", ["Tomato"]="🍅", ["Apple"]="🍎",
@@ -127,12 +171,8 @@ local SEED_EMOJI = {
     ["Mango"]="🥭", ["Dragon Fruit"]="🐉", ["Acorn"]="🌰",
     ["Cherry"]="🍒", ["Sunflower"]="🌻", ["Venus Fly Trap"]="🌿",
     ["Pomegranate"]="🔴", ["Poison Apple"]="🍏", ["Moon Bloom"]="🌙",
-    ["Dragon's Breath"]="🔥", ["Watermelon"]="🍉", ["Pepper"]="🌶️",
-    ["Lemon"]="🍋", ["Pear"]="🍐", ["Peach"]="🍑",
-    ["Avocado"]="🥑", ["Eggplant"]="🍆", ["Broccoli"]="🥦",
-    ["Onion"]="🧅", ["Garlic"]="🧄", ["Ginger"]="🫚",
+    ["Dragon's Breath"]="🔥",
 }
-
 local GEAR_EMOJI = {
     ["Common Sprinkler"]="💧", ["Uncommon Sprinkler"]="💧",
     ["Rare Sprinkler"]="💧", ["Legendary Sprinkler"]="💧",
@@ -141,45 +181,36 @@ local GEAR_EMOJI = {
     ["Rake"]="🪛", ["Crowbar"]="🔩", ["Teleporter"]="🌀",
     ["Power Hose"]="💦", ["Freeze Ray"]="❄️",
     ["Rainbow Carpet"]="🌈", ["Vine Wrapper"]="🌿",
-    ["Basic Pot"]="🪴", ["Watering Can"]="🪣",
-    ["Sprinkler"]="💧",
+    ["Basic Pot"]="🪴",
 }
 
 local SEED_LIST = {
-    -- Common
     {name="Carrot",          price="1 Sheckle",    rarity="Common"},
     {name="Strawberry",      price="10 Sheckles",  rarity="Common"},
     {name="Blueberry",       price="25 Sheckles",  rarity="Common"},
-    -- Uncommon
     {name="Tulip",           price="40 Sheckles",  rarity="Uncommon"},
     {name="Tomato",          price="200 Sheckles", rarity="Uncommon"},
     {name="Apple",           price="400 Sheckles", rarity="Uncommon"},
-    -- Rare
     {name="Bamboo",          price="700 Sheckles", rarity="Rare"},
     {name="Corn",            price="2.5K",         rarity="Rare"},
     {name="Cactus",          price="5K",           rarity="Rare"},
     {name="Pineapple",       price="10K",          rarity="Rare"},
-    -- Epic
     {name="Mushroom",        price="15K",          rarity="Epic"},
     {name="Green Bean",      price="20K",          rarity="Epic"},
     {name="Banana",          price="30K",          rarity="Epic"},
     {name="Grape",           price="45K",          rarity="Epic"},
     {name="Coconut",         price="60K",          rarity="Epic"},
     {name="Mango",           price="80K",          rarity="Epic"},
-    -- Legendary
     {name="Dragon Fruit",    price="120K",         rarity="Legendary"},
     {name="Acorn",           price="200K",         rarity="Legendary"},
     {name="Cherry",          price="300K",         rarity="Legendary"},
     {name="Sunflower",       price="500K",         rarity="Legendary"},
-    -- Mythic
     {name="Venus Fly Trap",  price="1M",           rarity="Mythic"},
     {name="Pomegranate",     price="2M",           rarity="Mythic"},
     {name="Poison Apple",    price="3M",           rarity="Mythic"},
-    -- Super
     {name="Moon Bloom",      price="???",          rarity="Super"},
     {name="Dragon's Breath", price="???",          rarity="Super"},
 }
-
 local GEAR_LIST = {
     {name="Common Sprinkler",    price="7 R$",   rarity="Common"},
     {name="Uncommon Sprinkler",  price="25 R$",  rarity="Uncommon"},
@@ -198,7 +229,6 @@ local GEAR_LIST = {
     {name="Rainbow Carpet",      price="599 R$", rarity="Legendary"},
     {name="Vine Wrapper",        price="499 R$", rarity="Rare"},
 }
-
 local CRATE_LIST = {
     {name="Ladder Crate",          price="19 R$",  rarity="Common"},
     {name="Bench Crate",           price="23 R$",  rarity="Common"},
@@ -228,6 +258,7 @@ local C = {
     Sub=Color3.fromRGB(120,120,155),  Border=Color3.fromRGB(40,40,60),
     Gold=Color3.fromRGB(255,200,50),  Row=Color3.fromRGB(22,22,34),
     RowIn=Color3.fromRGB(20,32,22),   Purple=Color3.fromRGB(80,40,160),
+    Teal=Color3.fromRGB(40,160,160),
 }
 
 -- ── GUI Root ───────────────────────────────────────────────────────────────────
@@ -255,7 +286,7 @@ local function tl(t,sz,col,x,y)
     l.TextXAlignment=Enum.TextXAlignment.Left
 end
 tl("🌱 Grow A Garden 2 Stock",14,C.Text,28,5)
-tl("Auto Reporter  v7",10,C.Sub,28,23)
+tl("Auto Reporter  v8",10,C.Sub,28,23)
 
 local function topBtn(xo,bg,t)
     local b=Instance.new("TextButton",TB)
@@ -298,7 +329,8 @@ local seedTab,seedTabL   = sideTab("Seeds","🌱",1)
 local gearTab,gearTabL   = sideTab("Gear","⚙️",2)
 local crateTab,crateTabL = sideTab("Crates","📦",3)
 local wxTab,wxTabL       = sideTab("Weather","🌤️",4)
-local hookTab,hookTabL   = sideTab("Webhook","🔗",5)
+local petTab,petTabL     = sideTab("Pets","🐾",5)
+local hookTab,hookTabL   = sideTab("Webhook","🔗",6)
 
 -- Status card
 local statusCard=Instance.new("Frame",SB)
@@ -357,7 +389,7 @@ local function abtn(p,t,y,bg,h)
     Instance.new("UICorner",b).CornerRadius=UDim.new(0,7) return b
 end
 
-local function makeRarityBadge(parent, rarity, xOffset)
+local function makeRarityBadge(parent,rarity,xOffset)
     local r=rarity or "Common"
     local col=RC[r] or C.Sub
     local bg=RARITY_BG[r] or C.Card
@@ -376,7 +408,7 @@ local function makeRarityBadge(parent, rarity, xOffset)
     return badge
 end
 
-local function makeItemRow(parent, item, index)
+local function makeItemRow(parent,item,index)
     local r=item.rarity or "Common"
     local row=Instance.new("Frame",parent)
     row.Size=UDim2.new(1,-4,0,30)
@@ -410,7 +442,7 @@ local function makeItemRow(parent, item, index)
     return row
 end
 
-local function buildShopPage(shopName, icon)
+local function buildShopPage(shopName,icon)
     local page=makePage()
     hdr(page,"  "..icon.." "..shopName:upper().." — live stock",0)
     local statsLbl=Instance.new("TextLabel",page)
@@ -438,15 +470,14 @@ local seedPage,  seedSc,  seedStats,  seedSend,  seedScan  = buildShopPage("Seed
 local gearPage,  gearSc,  gearStats,  gearSend,  gearScan  = buildShopPage("Gear","⚙️")
 local cratePage, crateSc, crateStats, crateSend, crateScan  = buildShopPage("Crates","📦")
 
-local function dbLookup(list, name)
+local function dbLookup(list,name)
     for _,v in ipairs(list) do
         if v.name:lower()==name:lower() then return v end
     end
     return nil
 end
 
--- ── Shop scanner ───────────────────────────────────────────────────────────────
-local function scanShop(guiName, dbList)
+local function scanShop(guiName,dbList)
     local items={} local seen={}
     pcall(function()
         local shopGui=pg:FindFirstChild(guiName)
@@ -483,8 +514,8 @@ local function scanShop(guiName, dbList)
                     displayPrice=dbPrice
                 end
                 table.insert(items,{
-                    name=name, price=displayPrice, dbPrice=dbPrice,
-                    rarity=dbRarity, stock=stock, inStock=inStock,
+                    name=name,price=displayPrice,dbPrice=dbPrice,
+                    rarity=dbRarity,stock=stock,inStock=inStock,
                 })
             end
         end
@@ -492,7 +523,6 @@ local function scanShop(guiName, dbList)
     return items
 end
 
--- ── Update display ─────────────────────────────────────────────────────────────
 local function updateDisplay(sc,statsLbl,items)
     for _,child in pairs(sc:GetChildren()) do
         if child:IsA("Frame") then child:Destroy() end
@@ -518,93 +548,55 @@ local function updateDisplay(sc,statsLbl,items)
     statsLbl.TextColor3=inCount>0 and C.Green or C.Sub
 end
 
--- ── Extract stock count from stock text ───────────────────────────────────────
 local function getStockCount(stockText)
     if not stockText then return "" end
     local num=stockText:match("x(%d+)")
     return num and num.."x" or ""
 end
 
--- ── Build combined Discord payload (new format) ────────────────────────────────
-local function buildCombinedPayload(seedItems, gearItems, crateItems, weatherList)
-    -- Build Seeds section
-    local seedLines={}
-    local seedMentions={}
+local function buildCombinedPayload(seedItems,gearItems,crateItems,weatherList)
+    local seedLines,gearLines,crateLines={},{},{}
     for _,item in ipairs(seedItems) do
         if item.inStock then
             local emoji=SEED_EMOJI[item.name] or "🌱"
-            local count=getStockCount(item.stock)
-            table.insert(seedLines, emoji.." "..count.." - "..item.name)
-            table.insert(seedMentions, "@"..item.name)
+            table.insert(seedLines,emoji.." "..getStockCount(item.stock).." - "..item.name)
         end
     end
-
-    -- Build Gear section
-    local gearLines={}
-    local gearMentions={}
     for _,item in ipairs(gearItems) do
         if item.inStock then
             local emoji=GEAR_EMOJI[item.name] or "⚙️"
-            local count=getStockCount(item.stock)
-            table.insert(gearLines, emoji.." "..count.." - "..item.name)
-            table.insert(gearMentions, "@"..item.name)
+            table.insert(gearLines,emoji.." "..getStockCount(item.stock).." - "..item.name)
         end
     end
-
-    -- Build Crates section
-    local crateLines={}
     for _,item in ipairs(crateItems) do
         if item.inStock then
-            local count=getStockCount(item.stock)
-            table.insert(crateLines, "📦 "..count.." - "..item.name)
+            table.insert(crateLines,"📦 "..getStockCount(item.stock).." - "..item.name)
         end
     end
-
-    -- Build description
     local desc=""
-    if #seedLines>0 then
-        desc=desc.."**SEEDS STOCK**\n"..table.concat(seedLines,"\n")
-    end
-    if #gearLines>0 then
-        if desc~="" then desc=desc.."\n\n" end
-        desc=desc.."**GEARS STOCK**\n"..table.concat(gearLines,"\n")
-    end
-    if #crateLines>0 then
-        if desc~="" then desc=desc.."\n\n" end
-        desc=desc.."**CRATES STOCK**\n"..table.concat(crateLines,"\n")
-    end
+    if #seedLines>0  then desc=desc.."**SEEDS STOCK**\n"..table.concat(seedLines,"\n") end
+    if #gearLines>0  then if desc~="" then desc=desc.."\n\n" end desc=desc.."**GEARS STOCK**\n"..table.concat(gearLines,"\n") end
+    if #crateLines>0 then if desc~="" then desc=desc.."\n\n" end desc=desc.."**CRATES STOCK**\n"..table.concat(crateLines,"\n") end
     if #weatherList>0 then
         local wxLines={}
         for _,w in ipairs(weatherList) do
-            local emoji=WEATHER_EMOJI[w.name] or "🌤️"
-            table.insert(wxLines, emoji.." "..w.name.." — "..w.time)
+            table.insert(wxLines,(WEATHER_EMOJI[w.name] or "🌤️").." "..w.name.." — "..w.time)
         end
         if desc~="" then desc=desc.."\n\n" end
         desc=desc.."**WEATHER**\n"..table.concat(wxLines,"\n")
     end
-
     if desc=="" then desc="No items currently in stock" end
-
-    -- Top color based on rarest item
     local topColor=RI.Common
-    local allItems={}
-    for _,i in ipairs(seedItems) do if i.inStock then table.insert(allItems,i) end end
-    for _,i in ipairs(gearItems) do if i.inStock then table.insert(allItems,i) end end
-    for _,i in ipairs(crateItems) do if i.inStock then table.insert(allItems,i) end end
-    for _,item in ipairs(allItems) do
-        for _,tier in ipairs(TIER_ORDER) do
-            if item.rarity==tier then topColor=RI[tier] or topColor break end
+    for _,list in ipairs({seedItems,gearItems,crateItems}) do
+        for _,item in ipairs(list) do
+            if item.inStock then
+                for _,tier in ipairs(TIER_ORDER) do
+                    if item.rarity==tier then topColor=RI[tier] or topColor break end
+                end
+            end
         end
     end
-
-    -- Mentions line (like the screenshot)
-    local allMentions={}
-    for _,m in ipairs(seedMentions) do table.insert(allMentions,m) end
-    for _,m in ipairs(gearMentions) do table.insert(allMentions,m) end
-    local mentionContent=#allMentions>0 and table.concat(allMentions," ") or nil
-
     return HttpService:JSONEncode({
-        content=mentionContent,
         embeds={{
             title="🌱 Grow A Garden 2 Stocks",
             description=desc,
@@ -615,7 +607,6 @@ local function buildCombinedPayload(seedItems, gearItems, crateItems, weatherLis
     })
 end
 
--- ── Weather scanner ────────────────────────────────────────────────────────────
 local function scanWeather()
     local active={}
     pcall(function()
@@ -658,10 +649,109 @@ local function sendWeatherPing(weather)
     }))
 end
 
+-- ══════════════════════════════════════════════
+-- PET SCANNER
+-- ══════════════════════════════════════════════
+local petDisplaySc   -- scrollframe ref, set when pet page is built
+local petStatsLbl    -- stats label ref
+
+local function updatePetDisplay()
+    if not petDisplaySc then return end
+    for _,child in pairs(petDisplaySc:GetChildren()) do
+        if child:IsA("Frame") then child:Destroy() end
+    end
+    local count=0
+    for petName,_ in pairs(activePets) do
+        count=count+1
+        local row=Instance.new("Frame",petDisplaySc)
+        row.Size=UDim2.new(1,-4,0,30)
+        row.BackgroundColor3=C.RowIn
+        row.LayoutOrder=count row.BorderSizePixel=0
+        Instance.new("UICorner",row).CornerRadius=UDim.new(0,5)
+
+        local dot=Instance.new("Frame",row)
+        dot.Size=UDim2.new(0,7,0,7) dot.Position=UDim2.new(0,6,0.5,-3)
+        dot.BackgroundColor3=C.Teal dot.BorderSizePixel=0
+        Instance.new("UICorner",dot).CornerRadius=UDim.new(1,0)
+
+        local emoji=PET_EMOJI[petName] or "🐾"
+        local nameLbl=Instance.new("TextLabel",row)
+        nameLbl.Size=UDim2.new(1,-20,1,0) nameLbl.Position=UDim2.new(0,18,0,0)
+        nameLbl.BackgroundTransparency=1 nameLbl.Text=emoji.." "..petName
+        nameLbl.TextColor3=C.Text nameLbl.TextSize=11 nameLbl.Font=Enum.Font.GothamBold
+        nameLbl.TextXAlignment=Enum.TextXAlignment.Left
+
+        -- ping indicator
+        local hasPing=PET_ROLE_PINGS[petName] and not PET_ROLE_PINGS[petName]:find("YOUR_ROLE_ID")
+        local pingDot=Instance.new("Frame",row)
+        pingDot.Size=UDim2.new(0,7,0,7) pingDot.Position=UDim2.new(1,-16,0.5,-3)
+        pingDot.BackgroundColor3=hasPing and C.Gold or C.Sub pingDot.BorderSizePixel=0
+        Instance.new("UICorner",pingDot).CornerRadius=UDim.new(1,0)
+    end
+    petDisplaySc.CanvasSize=UDim2.new(0,0,0,count*34+4)
+    if petStatsLbl then
+        petStatsLbl.Text=count>0 and ("🐾 "..count.." pet(s) active  ·  "..os.date("%H:%M:%S")) or "No pets spotted yet"
+        petStatsLbl.TextColor3=count>0 and C.Teal or C.Sub
+    end
+end
+
+local function sendPetPing(petName)
+    if sentPetPings[petName] then return end
+    sentPetPings[petName]=true
+    local ping=PET_ROLE_PINGS[petName]
+    if not ping or ping=="" or ping:find("YOUR_ROLE_ID") then return end
+    if PET_WEBHOOK_URL=="" then return end
+    local emoji=PET_EMOJI[petName] or "🐾"
+    httpPost(PET_WEBHOOK_URL,HttpService:JSONEncode({
+        content=ping,
+        embeds={{
+            title=emoji.." Wild "..petName.." Spotted!",
+            description="A **"..petName.."** has appeared in the server!\n🏃 Go catch it before it leaves!",
+            color=3447003,
+            footer={text="Grow A Garden 2 Stock · Pet Alert"},
+            timestamp=os.date("!%Y-%m-%dT%H:%M:%SZ"),
+        }}
+    }))
+end
+
+-- Watch _PetVisualClient.Models for new pets
+local function startPetWatcher()
+    local modelsFolder=game:GetService("Workspace"):FindFirstChild("_PetVisualClient")
+    if not modelsFolder then return end
+    local models=modelsFolder:FindFirstChild("Models")
+    if not models then return end
+
+    -- scan existing pets on load
+    for _,child in pairs(models:GetChildren()) do
+        if child:IsA("Model") then
+            activePets[child.Name]=true
+            sendPetPing(child.Name)
+        end
+    end
+    updatePetDisplay()
+
+    -- watch for new pets spawning
+    models.ChildAdded:Connect(function(child)
+        if child:IsA("Model") then
+            activePets[child.Name]=true
+            updatePetDisplay()
+            sendPetPing(child.Name)
+        end
+    end)
+
+    -- watch for pets despawning
+    models.ChildRemoved:Connect(function(child)
+        if child:IsA("Model") then
+            activePets[child.Name]=nil
+            sentPetPings[child.Name]=nil -- reset so it pings again next spawn
+            updatePetDisplay()
+        end
+    end)
+end
+
 -- ── Stored items ───────────────────────────────────────────────────────────────
 local seedItems,gearItems,crateItems={},{},{}
 
--- ── Main scan ──────────────────────────────────────────────────────────────────
 local function runFullScan(force)
     local newSeeds  = scanShop("SeedShop",  SEED_LIST)
     local newGear   = scanShop("GearShop",  GEAR_LIST)
@@ -703,7 +793,6 @@ local function runFullScan(force)
     lastScanLbl.Text="Scanned: "..os.date("%H:%M:%S")
 end
 
--- ── Force send per-shop ────────────────────────────────────────────────────────
 local function forceSendShop(items,shopName,icon,btn,label)
     if WEBHOOK_URL=="" then btn.Text="⚠️ No webhook!" task.delay(2,function() btn.Text=label end) return end
     btn.Text="⏳ Sending..."
@@ -714,8 +803,7 @@ local function forceSendShop(items,shopName,icon,btn,label)
         local lines={}
         for _,item in ipairs(inStock) do
             local emoji=(shopName=="Seeds" and SEED_EMOJI[item.name]) or (shopName=="Gear" and GEAR_EMOJI[item.name]) or "📦"
-            local count=getStockCount(item.stock)
-            table.insert(lines, emoji.." "..count.." - "..item.name)
+            table.insert(lines,emoji.." "..getStockCount(item.stock).." - "..item.name)
             for _,tier in ipairs(TIER_ORDER) do if item.rarity==tier then topColor=RI[tier] or topColor break end end
         end
         local ok=httpPost(WEBHOOK_URL,HttpService:JSONEncode({
@@ -763,7 +851,6 @@ wxDisplay.BackgroundTransparency=1 wxDisplay.Text="Scanning..."
 wxDisplay.TextColor3=C.Sub wxDisplay.TextSize=12 wxDisplay.Font=Enum.Font.Gotham
 wxDisplay.TextXAlignment=Enum.TextXAlignment.Left
 wxDisplay.TextYAlignment=Enum.TextYAlignment.Top wxDisplay.TextWrapped=true
-
 local wxIconRow=Instance.new("Frame",WXP)
 wxIconRow.Size=UDim2.new(1,0,0,40) wxIconRow.Position=UDim2.new(0,0,0,234)
 wxIconRow.BackgroundTransparency=1 wxIconRow.BorderSizePixel=0
@@ -779,7 +866,6 @@ for _,wx in ipairs({"Rain","Lightning","Bloodmoon","Snowfall","Night","Starfall"
     Instance.new("UIStroke",btn).Color=C.Border
     wxIconRefs[wx]=btn
 end
-
 local wxSendBtn=abtn(WXP,"📤  Send Weather to Discord",280,C.Accent)
 local wxScanBtn=abtn(WXP,"🔍  Refresh Weather",316,Color3.fromRGB(25,100,65),26)
 
@@ -835,16 +921,50 @@ wxSendBtn.MouseButton1Click:Connect(function()
     end)
 end)
 
+-- ── PET PAGE ───────────────────────────────────────────────────────────────────
+local PTP=makePage()
+hdr(PTP,"  🐾 PETS — wild spawns",0)
+
+local petStats=Instance.new("TextLabel",PTP)
+petStats.Size=UDim2.new(1,0,0,16) petStats.Position=UDim2.new(0,0,0,16)
+petStats.BackgroundTransparency=1 petStats.Text="Watching for pets..."
+petStats.TextColor3=C.Sub petStats.TextSize=10 petStats.Font=Enum.Font.Gotham
+petStats.TextXAlignment=Enum.TextXAlignment.Left
+petStatsLbl=petStats
+
+local petBg=Instance.new("Frame",PTP) petBg.Size=UDim2.new(1,0,0,302)
+petBg.Position=UDim2.new(0,0,0,36) petBg.BackgroundColor3=C.Card
+petBg.BorderSizePixel=0 petBg.ClipsDescendants=true
+Instance.new("UICorner",petBg).CornerRadius=UDim.new(0,8)
+Instance.new("UIStroke",petBg).Color=C.Border
+
+local petSc=Instance.new("ScrollingFrame",petBg)
+petSc.Size=UDim2.new(1,-4,1,-4) petSc.Position=UDim2.new(0,2,0,2)
+petSc.BackgroundTransparency=1 petSc.BorderSizePixel=0
+petSc.ScrollBarThickness=2 petSc.ScrollBarImageColor3=C.Teal
+local petLay=Instance.new("UIListLayout",petSc)
+petLay.Padding=UDim.new(0,2) petLay.SortOrder=Enum.SortOrder.LayoutOrder
+petDisplaySc=petSc
+
+local petInfoLbl=Instance.new("TextLabel",PTP)
+petInfoLbl.Size=UDim2.new(1,0,0,30) petInfoLbl.Position=UDim2.new(0,0,0,344)
+petInfoLbl.BackgroundTransparency=1
+petInfoLbl.Text="🟡 dot = ping enabled  ·  ⚫ dot = no ping set  ·  Uses Pet Webhook"
+petInfoLbl.TextColor3=C.Sub petInfoLbl.TextSize=9 petInfoLbl.Font=Enum.Font.Gotham
+petInfoLbl.TextXAlignment=Enum.TextXAlignment.Left petInfoLbl.TextWrapped=true
+
 -- ── WEBHOOK PAGE ───────────────────────────────────────────────────────────────
 local HKP=makePage()
-hdr(HKP,"  DISCORD WEBHOOK",0)
+hdr(HKP,"  DISCORD WEBHOOKS",0)
+
+-- Stock Webhook card
 local wCard=Instance.new("Frame",HKP) wCard.Size=UDim2.new(1,0,0,110)
 wCard.Position=UDim2.new(0,0,0,16) wCard.BackgroundColor3=C.Card wCard.BorderSizePixel=0
 Instance.new("UICorner",wCard).CornerRadius=UDim.new(0,8)
 Instance.new("UIStroke",wCard).Color=C.Border
 local wHint=Instance.new("TextLabel",wCard)
 wHint.Size=UDim2.new(1,-16,0,18) wHint.Position=UDim2.new(0,8,0,6) wHint.BackgroundTransparency=1
-wHint.Text="Discord Webhook URL (saved permanently):"
+wHint.Text="📦 Stock + Weather Webhook:"
 wHint.TextColor3=C.Sub wHint.TextSize=11 wHint.Font=Enum.Font.GothamBold
 wHint.TextXAlignment=Enum.TextXAlignment.Left
 local wBox=Instance.new("TextBox",wCard)
@@ -854,32 +974,68 @@ wBox.TextColor3=C.Text wBox.PlaceholderColor3=C.Sub wBox.TextSize=9 wBox.Font=En
 wBox.TextXAlignment=Enum.TextXAlignment.Left wBox.ClearTextOnFocus=false wBox.BorderSizePixel=0
 Instance.new("UICorner",wBox).CornerRadius=UDim.new(0,5)
 Instance.new("UIPadding",wBox).PaddingLeft=UDim.new(0,6)
-local wSave=abtn(wCard,"💾  Save Webhook Permanently",70,C.Green,28)
+local wSave=abtn(wCard,"💾  Save Stock Webhook",70,C.Green,28)
 wSave.Size=UDim2.new(1,-16,0,28) wSave.Position=UDim2.new(0,8,0,70) wSave.TextSize=11
+
 local wStatus=Instance.new("TextLabel",HKP)
-wStatus.Size=UDim2.new(1,0,0,20) wStatus.Position=UDim2.new(0,0,0,134) wStatus.BackgroundTransparency=1
-wStatus.Text=WEBHOOK_URL~="" and "✅ Webhook loaded from save!" or "No webhook saved."
+wStatus.Size=UDim2.new(1,0,0,16) wStatus.Position=UDim2.new(0,0,0,132) wStatus.BackgroundTransparency=1
+wStatus.Text=WEBHOOK_URL~="" and "✅ Stock webhook loaded!" or "No stock webhook saved."
 wStatus.TextColor3=WEBHOOK_URL~="" and C.Green or C.Sub
-wStatus.TextSize=11 wStatus.Font=Enum.Font.GothamBold wStatus.TextXAlignment=Enum.TextXAlignment.Left
-local wTest=abtn(HKP,"🧪  Test Webhook",160,C.Panel)
+wStatus.TextSize=10 wStatus.Font=Enum.Font.GothamBold wStatus.TextXAlignment=Enum.TextXAlignment.Left
+
+-- Pet Webhook card
+local pCard=Instance.new("Frame",HKP) pCard.Size=UDim2.new(1,0,0,110)
+pCard.Position=UDim2.new(0,0,0,154) pCard.BackgroundColor3=C.Card pCard.BorderSizePixel=0
+Instance.new("UICorner",pCard).CornerRadius=UDim.new(0,8)
+local pCardStroke=Instance.new("UIStroke",pCard) pCardStroke.Color=C.Teal pCardStroke.Thickness=1
+local pHint=Instance.new("TextLabel",pCard)
+pHint.Size=UDim2.new(1,-16,0,18) pHint.Position=UDim2.new(0,8,0,6) pHint.BackgroundTransparency=1
+pHint.Text="🐾 Pet Alert Webhook (separate channel):"
+pHint.TextColor3=C.Teal pHint.TextSize=11 pHint.Font=Enum.Font.GothamBold
+pHint.TextXAlignment=Enum.TextXAlignment.Left
+local pBox=Instance.new("TextBox",pCard)
+pBox.Size=UDim2.new(1,-16,0,32) pBox.Position=UDim2.new(0,8,0,28) pBox.BackgroundColor3=C.BG
+pBox.Text=PET_WEBHOOK_URL pBox.PlaceholderText="https://discord.com/api/webhooks/..."
+pBox.TextColor3=C.Text pBox.PlaceholderColor3=C.Sub pBox.TextSize=9 pBox.Font=Enum.Font.Gotham
+pBox.TextXAlignment=Enum.TextXAlignment.Left pBox.ClearTextOnFocus=false pBox.BorderSizePixel=0
+Instance.new("UICorner",pBox).CornerRadius=UDim.new(0,5)
+Instance.new("UIPadding",pBox).PaddingLeft=UDim.new(0,6)
+local pSave=abtn(pCard,"💾  Save Pet Webhook",70,C.Teal,28)
+pSave.Size=UDim2.new(1,-16,0,28) pSave.Position=UDim2.new(0,8,0,70) pSave.TextSize=11
+
+local pStatus=Instance.new("TextLabel",HKP)
+pStatus.Size=UDim2.new(1,0,0,16) pStatus.Position=UDim2.new(0,0,0,270) pStatus.BackgroundTransparency=1
+pStatus.Text=PET_WEBHOOK_URL~="" and "✅ Pet webhook loaded!" or "No pet webhook saved."
+pStatus.TextColor3=PET_WEBHOOK_URL~="" and C.Teal or C.Sub
+pStatus.TextSize=10 pStatus.Font=Enum.Font.GothamBold pStatus.TextXAlignment=Enum.TextXAlignment.Left
+
+-- Test/Clear buttons
+local wTest=abtn(HKP,"🧪  Test Stock Webhook",292,C.Panel,26)
 Instance.new("UIStroke",wTest).Color=C.Accent
-local wClear=abtn(HKP,"🗑  Clear Saved Webhook",198,C.Panel,26)
+local pTest=abtn(HKP,"🧪  Test Pet Webhook",322,C.Panel,26)
+Instance.new("UIStroke",pTest).Color=C.Teal
+local wClear=abtn(HKP,"🗑  Clear Both Webhooks",352,C.Panel,26)
 Instance.new("UIStroke",wClear).Color=C.Red
-local wInfo=Instance.new("TextLabel",HKP)
-wInfo.Size=UDim2.new(1,0,0,140) wInfo.Position=UDim2.new(0,0,0,232) wInfo.BackgroundTransparency=1
-wInfo.Text="Webhook saved locally — auto-loaded every run!\n\nHow to get a webhook:\n1. Discord → channel → ⚙️ Edit → Integrations\n2. Webhooks → New Webhook → Copy URL\n3. Paste above → Save\n\nWeather pings: each weather has its own role ID\n(edit WEATHER_ROLE_PINGS at top of script)\n\nStock format: @item mentions + SEEDS/GEARS/CRATES sections in one embed"
-wInfo.TextColor3=C.Sub wInfo.TextSize=10 wInfo.Font=Enum.Font.Gotham
-wInfo.TextXAlignment=Enum.TextXAlignment.Left wInfo.TextWrapped=true
 
 wSave.MouseButton1Click:Connect(function()
     local url=wBox.Text:gsub("%s+","")
     if url:find("discord.com/api/webhooks/") then
         WEBHOOK_URL=url
         pcall(function() writefile(WEBHOOK_FILE,url) end)
-        wStatus.Text="✅ Saved permanently!" wStatus.TextColor3=C.Green
+        wStatus.Text="✅ Stock webhook saved!" wStatus.TextColor3=C.Green
         webhookLbl.Text="✅ Webhook set" webhookLbl.TextColor3=C.Green
     else
-        wStatus.Text="❌ Invalid webhook URL" wStatus.TextColor3=C.Red
+        wStatus.Text="❌ Invalid URL" wStatus.TextColor3=C.Red
+    end
+end)
+pSave.MouseButton1Click:Connect(function()
+    local url=pBox.Text:gsub("%s+","")
+    if url:find("discord.com/api/webhooks/") then
+        PET_WEBHOOK_URL=url
+        pcall(function() writefile(PET_WEBHOOK_FILE,url) end)
+        pStatus.Text="✅ Pet webhook saved!" pStatus.TextColor3=C.Teal
+    else
+        pStatus.Text="❌ Invalid URL" pStatus.TextColor3=C.Red
     end
 end)
 wTest.MouseButton1Click:Connect(function()
@@ -887,18 +1043,32 @@ wTest.MouseButton1Click:Connect(function()
     wTest.Text="⏳ Testing..."
     task.spawn(function()
         local ok,err=httpPost(WEBHOOK_URL,HttpService:JSONEncode({
-            embeds={{title="✅ Grow A Garden 2 Stock — Test",description="Connected!\n🌱 Seeds · ⚙️ Gear · 📦 Crates · 🌤️ Weather",color=3066993,footer={text="Grow A Garden 2 Stock"}}}
+            embeds={{title="✅ Stock Webhook Test",description="Connected!\n🌱 Seeds · ⚙️ Gear · 📦 Crates · 🌤️ Weather",color=3066993,footer={text="Grow A Garden 2 Stock"}}}
         }))
         wTest.Text=ok and "✅ Works!" or "❌ Failed"
         wStatus.Text=ok and "✅ Connected!" or "❌ "..tostring(err)
         wStatus.TextColor3=ok and C.Green or C.Red
-        task.delay(3,function() wTest.Text="🧪  Test Webhook" end)
+        task.delay(3,function() wTest.Text="🧪  Test Stock Webhook" end)
+    end)
+end)
+pTest.MouseButton1Click:Connect(function()
+    if PET_WEBHOOK_URL=="" then pStatus.Text="⚠️ Save pet webhook first!" pStatus.TextColor3=C.Red return end
+    pTest.Text="⏳ Testing..."
+    task.spawn(function()
+        local ok,err=httpPost(PET_WEBHOOK_URL,HttpService:JSONEncode({
+            embeds={{title="✅ Pet Webhook Test",description="Connected!\n🐾 Pet alerts will appear here.",color=3447003,footer={text="Grow A Garden 2 Stock · Pets"}}}
+        }))
+        pTest.Text=ok and "✅ Works!" or "❌ Failed"
+        pStatus.Text=ok and "✅ Connected!" or "❌ "..tostring(err)
+        pStatus.TextColor3=ok and C.Teal or C.Red
+        task.delay(3,function() pTest.Text="🧪  Test Pet Webhook" end)
     end)
 end)
 wClear.MouseButton1Click:Connect(function()
-    WEBHOOK_URL="" wBox.Text=""
-    pcall(function() writefile(WEBHOOK_FILE,"") end)
-    wStatus.Text="Webhook cleared." wStatus.TextColor3=C.Sub
+    WEBHOOK_URL="" PET_WEBHOOK_URL="" wBox.Text="" pBox.Text=""
+    pcall(function() writefile(WEBHOOK_FILE,"") writefile(PET_WEBHOOK_FILE,"") end)
+    wStatus.Text="Cleared." wStatus.TextColor3=C.Sub
+    pStatus.Text="Cleared." pStatus.TextColor3=C.Sub
     webhookLbl.Text="⚠️ No webhook" webhookLbl.TextColor3=C.Red
 end)
 
@@ -906,7 +1076,7 @@ end)
 local tabs={
     Seeds={seedPage,seedTab,seedTabL},     Gear={gearPage,gearTab,gearTabL},
     Crates={cratePage,crateTab,crateTabL}, Weather={WXP,wxTab,wxTabL},
-    Webhook={HKP,hookTab,hookTabL},
+    Pets={PTP,petTab,petTabL},             Webhook={HKP,hookTab,hookTabL},
 }
 local function switchTab(n)
     for k,v in pairs(tabs) do
@@ -915,11 +1085,13 @@ local function switchTab(n)
         v[3].TextColor3=(k==n) and C.Text or C.Sub
     end
     if n=="Weather" then refreshWeatherDisplay() end
+    if n=="Pets" then updatePetDisplay() end
 end
 seedTab.MouseButton1Click:Connect(function()  switchTab("Seeds")   end)
 gearTab.MouseButton1Click:Connect(function()  switchTab("Gear")    end)
 crateTab.MouseButton1Click:Connect(function() switchTab("Crates")  end)
 wxTab.MouseButton1Click:Connect(function()    switchTab("Weather") end)
+petTab.MouseButton1Click:Connect(function()   switchTab("Pets")    end)
 hookTab.MouseButton1Click:Connect(function()  switchTab("Webhook") end)
 switchTab("Seeds")
 
@@ -948,7 +1120,6 @@ forceBtn.MouseButton1Click:Connect(function()
     end)
 end)
 
--- ── Auto scan loop ─────────────────────────────────────────────────────────────
 task.spawn(function()
     while true do
         if AUTO_ENABLED then pcall(runFullScan,false) end
@@ -956,7 +1127,6 @@ task.spawn(function()
     end
 end)
 
--- ── 5-minute restock countdown ─────────────────────────────────────────────────
 task.spawn(function()
     while true do
         local remaining=300-(os.time()%300)
@@ -976,7 +1146,6 @@ task.spawn(function()
     end
 end)
 
--- ── Drag ───────────────────────────────────────────────────────────────────────
 do
     local drag,ds,wp
     TB.InputBegan:Connect(function(i)
@@ -993,6 +1162,10 @@ do
     end)
 end
 
-task.delay(1.5,function() pcall(runFullScan,true) refreshWeatherDisplay() end)
+task.delay(1.5,function()
+    pcall(runFullScan,true)
+    refreshWeatherDisplay()
+    startPetWatcher()
+end)
 
-print("[Grow A Garden 2 Stock v7] Loaded!")
+print("[Grow A Garden 2 Stock v8] Loaded!")
