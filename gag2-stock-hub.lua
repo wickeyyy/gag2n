@@ -1,5 +1,5 @@
 -- ╔═══════════════════════════════════════════════════════════════╗
--- ║     Grow A Garden 2 Stock                                     ║
+-- ║     Grow A Garden 2 Stock v7                                  ║
 -- ║     Auto Stock Reporter + Discord Notifier                    ║
 -- ║     Seeds · Gear · Crates · Weather                           ║
 -- ╚═══════════════════════════════════════════════════════════════╝
@@ -15,10 +15,8 @@ local pg               = lp:WaitForChild("PlayerGui")
 if pg:FindFirstChild("GAG2StockHub") then pg:FindFirstChild("GAG2StockHub"):Destroy() end
 
 -- ══════════════════════════════════════════════
--- ROLE PINGS
+-- ROLE PINGS (weather only)
 -- ══════════════════════════════════════════════
-local STOCK_ROLE_PING = "<@&1515378504525549659>"
-
 local WEATHER_ROLE_PINGS = {
     ["Bloodmoon"] = "<@&1515606946948972645>",
     ["Rain"]      = "<@&1515607032609247353>",
@@ -30,20 +28,19 @@ local WEATHER_ROLE_PINGS = {
     ["Night"]     = "",
 }
 
--- Items to always exclude from scan results
 local EXCLUDED_ITEMS = {
     ["Carrot Seed"]   = true,
     ["Jump Mushroom"] = true,
 }
 -- ══════════════════════════════════════════════
 
-local WEBHOOK_FILE     = "gag2_webhook.txt"
-local WEBHOOK_URL      = ""
-local AUTO_ENABLED     = true
-local AUTO_INTERVAL    = 30
+local WEBHOOK_FILE      = "gag2_webhook.txt"
+local WEBHOOK_URL       = ""
+local AUTO_ENABLED      = true
+local AUTO_INTERVAL     = 30
 local lastStockSnapshot = {}
 local lastWeather       = {}
-local sentWeatherPings  = {} -- never bulk-reset; only clears per-weather when it ends
+local sentWeatherPings  = {}
 
 pcall(function()
     if isfile and isfile(WEBHOOK_FILE) then
@@ -117,32 +114,68 @@ local WEATHER_COLOR = {
 }
 
 -- ══════════════════════════════════════════════════════════════════
--- ITEM DATABASES
+-- ITEM DATABASES (updated from wiki + image)
 -- ══════════════════════════════════════════════════════════════════
+
+-- Crop/seed emojis for Discord display
+local SEED_EMOJI = {
+    ["Carrot"]="🥕", ["Strawberry"]="🍓", ["Blueberry"]="🫐",
+    ["Tulip"]="🌷", ["Tomato"]="🍅", ["Apple"]="🍎",
+    ["Bamboo"]="🎋", ["Corn"]="🌽", ["Cactus"]="🌵",
+    ["Pineapple"]="🍍", ["Mushroom"]="🍄", ["Green Bean"]="🫘",
+    ["Banana"]="🍌", ["Grape"]="🍇", ["Coconut"]="🥥",
+    ["Mango"]="🥭", ["Dragon Fruit"]="🐉", ["Acorn"]="🌰",
+    ["Cherry"]="🍒", ["Sunflower"]="🌻", ["Venus Fly Trap"]="🌿",
+    ["Pomegranate"]="🔴", ["Poison Apple"]="🍏", ["Moon Bloom"]="🌙",
+    ["Dragon's Breath"]="🔥", ["Watermelon"]="🍉", ["Pepper"]="🌶️",
+    ["Lemon"]="🍋", ["Pear"]="🍐", ["Peach"]="🍑",
+    ["Avocado"]="🥑", ["Eggplant"]="🍆", ["Broccoli"]="🥦",
+    ["Onion"]="🧅", ["Garlic"]="🧄", ["Ginger"]="🫚",
+}
+
+local GEAR_EMOJI = {
+    ["Common Sprinkler"]="💧", ["Uncommon Sprinkler"]="💧",
+    ["Rare Sprinkler"]="💧", ["Legendary Sprinkler"]="💧",
+    ["Super Sprinkler"]="💧", ["Common Watering Can"]="🪣",
+    ["Super Watering Can"]="🪣", ["Trowel"]="🔧",
+    ["Rake"]="🪛", ["Crowbar"]="🔩", ["Teleporter"]="🌀",
+    ["Power Hose"]="💦", ["Freeze Ray"]="❄️",
+    ["Rainbow Carpet"]="🌈", ["Vine Wrapper"]="🌿",
+    ["Basic Pot"]="🪴", ["Watering Can"]="🪣",
+    ["Sprinkler"]="💧",
+}
+
 local SEED_LIST = {
+    -- Common
     {name="Carrot",          price="1 Sheckle",    rarity="Common"},
     {name="Strawberry",      price="10 Sheckles",  rarity="Common"},
     {name="Blueberry",       price="25 Sheckles",  rarity="Common"},
+    -- Uncommon
     {name="Tulip",           price="40 Sheckles",  rarity="Uncommon"},
     {name="Tomato",          price="200 Sheckles", rarity="Uncommon"},
     {name="Apple",           price="400 Sheckles", rarity="Uncommon"},
+    -- Rare
     {name="Bamboo",          price="700 Sheckles", rarity="Rare"},
     {name="Corn",            price="2.5K",         rarity="Rare"},
     {name="Cactus",          price="5K",           rarity="Rare"},
     {name="Pineapple",       price="10K",          rarity="Rare"},
+    -- Epic
     {name="Mushroom",        price="15K",          rarity="Epic"},
     {name="Green Bean",      price="20K",          rarity="Epic"},
     {name="Banana",          price="30K",          rarity="Epic"},
-    {name="Grape",           price="???",          rarity="Epic"},
-    {name="Coconut",         price="???",          rarity="Epic"},
-    {name="Mango",           price="???",          rarity="Epic"},
+    {name="Grape",           price="45K",          rarity="Epic"},
+    {name="Coconut",         price="60K",          rarity="Epic"},
+    {name="Mango",           price="80K",          rarity="Epic"},
+    -- Legendary
     {name="Dragon Fruit",    price="120K",         rarity="Legendary"},
     {name="Acorn",           price="200K",         rarity="Legendary"},
-    {name="Cherry",          price="???",          rarity="Legendary"},
-    {name="Sunflower",       price="???",          rarity="Legendary"},
-    {name="Venus Fly Trap",  price="???",          rarity="Mythic"},
+    {name="Cherry",          price="300K",         rarity="Legendary"},
+    {name="Sunflower",       price="500K",         rarity="Legendary"},
+    -- Mythic
+    {name="Venus Fly Trap",  price="1M",           rarity="Mythic"},
     {name="Pomegranate",     price="2M",           rarity="Mythic"},
-    {name="Poison Apple",    price="???",          rarity="Mythic"},
+    {name="Poison Apple",    price="3M",           rarity="Mythic"},
+    -- Super
     {name="Moon Bloom",      price="???",          rarity="Super"},
     {name="Dragon's Breath", price="???",          rarity="Super"},
 }
@@ -155,6 +188,7 @@ local GEAR_LIST = {
     {name="Super Sprinkler",     price="399 R$", rarity="Super"},
     {name="Common Watering Can", price="7 R$",   rarity="Common"},
     {name="Super Watering Can",  price="340 R$", rarity="Super"},
+    {name="Basic Pot",           price="Free",   rarity="Common"},
     {name="Trowel",              price="30 R$",  rarity="Common"},
     {name="Rake",                price="65 R$",  rarity="Uncommon"},
     {name="Crowbar",             price="85 R$",  rarity="Uncommon"},
@@ -178,6 +212,11 @@ local CRATE_LIST = {
     {name="Owner Door Crate",      price="179 R$", rarity="Epic"},
     {name="Fence Crate",           price="199 R$", rarity="Epic"},
     {name="Weather Machine Crate", price="399 R$", rarity="Legendary"},
+    {name="Sign Crate",            price="29 R$",  rarity="Common"},
+    {name="Teleporter Pad Crate",  price="49 R$",  rarity="Uncommon"},
+    {name="Seesaw Crate",          price="89 R$",  rarity="Rare"},
+    {name="Lantern Crate",         price="35 R$",  rarity="Common"},
+    {name="Wheelbarrow Crate",     price="45 R$",  rarity="Common"},
 }
 
 -- ── Theme ──────────────────────────────────────────────────────────────────────
@@ -216,7 +255,7 @@ local function tl(t,sz,col,x,y)
     l.TextXAlignment=Enum.TextXAlignment.Left
 end
 tl("🌱 Grow A Garden 2 Stock",14,C.Text,28,5)
-tl("Auto Reporter  v6",10,C.Sub,28,23)
+tl("Auto Reporter  v7",10,C.Sub,28,23)
 
 local function topBtn(xo,bg,t)
     local b=Instance.new("TextButton",TB)
@@ -283,7 +322,7 @@ local autoLbl     = sideLabel("🟢 Auto: ON",9,34,C.Green)
 local lastScanLbl = sideLabel("Starting...",8,50)
 local webhookLbl  = sideLabel(
     WEBHOOK_URL~="" and "✅ Webhook set" or "⚠️ No webhook",
-    8,64, WEBHOOK_URL~="" and C.Green or C.Red
+    8,64,WEBHOOK_URL~="" and C.Green or C.Red
 )
 
 local offBtn=Instance.new("TextButton",SB)
@@ -319,81 +358,80 @@ local function abtn(p,t,y,bg,h)
 end
 
 local function makeRarityBadge(parent, rarity, xOffset)
-    local r   = rarity or "Common"
-    local col = RC[r] or C.Sub
-    local bg  = RARITY_BG[r] or C.Card
-    local emoji = RE[r] or "⚪"
-    local badge = Instance.new("Frame", parent)
-    badge.Size = UDim2.new(0,82,0,19)
-    badge.Position = UDim2.new(1, xOffset or -130, 0.5, -9)
-    badge.BackgroundColor3 = bg badge.BorderSizePixel = 0
-    Instance.new("UICorner", badge).CornerRadius = UDim.new(0,9)
-    local stroke = Instance.new("UIStroke", badge)
-    stroke.Color = col stroke.Thickness = 1.2
-    local lbl = Instance.new("TextLabel", badge)
-    lbl.Size = UDim2.new(1,-4,1,0) lbl.Position = UDim2.new(0,2,0,0)
-    lbl.BackgroundTransparency = 1 lbl.Text = emoji.." "..r
-    lbl.TextColor3 = col lbl.TextSize = 9 lbl.Font = Enum.Font.GothamBold
-    lbl.TextXAlignment = Enum.TextXAlignment.Center
+    local r=rarity or "Common"
+    local col=RC[r] or C.Sub
+    local bg=RARITY_BG[r] or C.Card
+    local emoji=RE[r] or "⚪"
+    local badge=Instance.new("Frame",parent)
+    badge.Size=UDim2.new(0,82,0,19)
+    badge.Position=UDim2.new(1,xOffset or -130,0.5,-9)
+    badge.BackgroundColor3=bg badge.BorderSizePixel=0
+    Instance.new("UICorner",badge).CornerRadius=UDim.new(0,9)
+    local stroke=Instance.new("UIStroke",badge) stroke.Color=col stroke.Thickness=1.2
+    local lbl=Instance.new("TextLabel",badge)
+    lbl.Size=UDim2.new(1,-4,1,0) lbl.Position=UDim2.new(0,2,0,0)
+    lbl.BackgroundTransparency=1 lbl.Text=emoji.." "..r
+    lbl.TextColor3=col lbl.TextSize=9 lbl.Font=Enum.Font.GothamBold
+    lbl.TextXAlignment=Enum.TextXAlignment.Center
     return badge
 end
 
 local function makeItemRow(parent, item, index)
-    local r = item.rarity or "Common"
-    local row = Instance.new("Frame", parent)
-    row.Size = UDim2.new(1,-4,0,30)
-    row.BackgroundColor3 = item.inStock and C.RowIn or C.Row
-    row.LayoutOrder = index row.BorderSizePixel = 0
-    Instance.new("UICorner", row).CornerRadius = UDim.new(0,5)
-    local dot = Instance.new("Frame", row)
-    dot.Size = UDim2.new(0,7,0,7) dot.Position = UDim2.new(0,6,0.5,-3)
-    dot.BackgroundColor3 = item.inStock and C.Green or C.Red
-    dot.BorderSizePixel = 0
-    Instance.new("UICorner", dot).CornerRadius = UDim.new(1,0)
-    local nameLbl = Instance.new("TextLabel", row)
-    nameLbl.Size = UDim2.new(1,-160,1,0) nameLbl.Position = UDim2.new(0,18,0,0)
-    nameLbl.BackgroundTransparency = 1 nameLbl.Text = item.name
-    nameLbl.TextColor3 = item.inStock and C.Text or C.Sub
-    nameLbl.TextSize = 11 nameLbl.Font = Enum.Font.GothamBold
-    nameLbl.TextXAlignment = Enum.TextXAlignment.Left
-    makeRarityBadge(row, r, -130)
-    local priceLbl = Instance.new("TextLabel", row)
-    priceLbl.Size = UDim2.new(0,42,1,0) priceLbl.Position = UDim2.new(1,-44,0,0)
-    priceLbl.BackgroundTransparency = 1
-    local displayPrice = item.price or "???"
+    local r=item.rarity or "Common"
+    local row=Instance.new("Frame",parent)
+    row.Size=UDim2.new(1,-4,0,30)
+    row.BackgroundColor3=item.inStock and C.RowIn or C.Row
+    row.LayoutOrder=index row.BorderSizePixel=0
+    Instance.new("UICorner",row).CornerRadius=UDim.new(0,5)
+    local dot=Instance.new("Frame",row)
+    dot.Size=UDim2.new(0,7,0,7) dot.Position=UDim2.new(0,6,0.5,-3)
+    dot.BackgroundColor3=item.inStock and C.Green or C.Red
+    dot.BorderSizePixel=0
+    Instance.new("UICorner",dot).CornerRadius=UDim.new(1,0)
+    local nameLbl=Instance.new("TextLabel",row)
+    nameLbl.Size=UDim2.new(1,-160,1,0) nameLbl.Position=UDim2.new(0,18,0,0)
+    nameLbl.BackgroundTransparency=1 nameLbl.Text=item.name
+    nameLbl.TextColor3=item.inStock and C.Text or C.Sub
+    nameLbl.TextSize=11 nameLbl.Font=Enum.Font.GothamBold
+    nameLbl.TextXAlignment=Enum.TextXAlignment.Left
+    makeRarityBadge(row,r,-130)
+    local priceLbl=Instance.new("TextLabel",row)
+    priceLbl.Size=UDim2.new(0,42,1,0) priceLbl.Position=UDim2.new(1,-44,0,0)
+    priceLbl.BackgroundTransparency=1
+    local displayPrice=item.price or "???"
     if displayPrice=="OWNED" or displayPrice=="EQUIPPED"
     or displayPrice=="NOT OWNED" or displayPrice=="UNEQUIPPED" then
-        displayPrice = item.dbPrice or "R$?"
+        displayPrice=item.dbPrice or "R$?"
     end
-    priceLbl.Text = displayPrice
-    priceLbl.TextColor3 = item.inStock and Color3.fromRGB(100,220,100) or C.Sub
-    priceLbl.TextSize = 9 priceLbl.Font = Enum.Font.Gotham
-    priceLbl.TextXAlignment = Enum.TextXAlignment.Right
+    priceLbl.Text=displayPrice
+    priceLbl.TextColor3=item.inStock and Color3.fromRGB(100,220,100) or C.Sub
+    priceLbl.TextSize=9 priceLbl.Font=Enum.Font.Gotham
+    priceLbl.TextXAlignment=Enum.TextXAlignment.Right
     return row
 end
 
 local function buildShopPage(shopName, icon)
-    local page = makePage()
+    local page=makePage()
     hdr(page,"  "..icon.." "..shopName:upper().." — live stock",0)
-    local statsLbl = Instance.new("TextLabel",page)
-    statsLbl.Size = UDim2.new(1,0,0,16) statsLbl.Position = UDim2.new(0,0,0,16)
-    statsLbl.BackgroundTransparency = 1 statsLbl.Text = "Waiting for scan..."
-    statsLbl.TextColor3 = C.Sub statsLbl.TextSize = 10 statsLbl.Font = Enum.Font.Gotham
-    statsLbl.TextXAlignment = Enum.TextXAlignment.Left
-    local bg = Instance.new("Frame",page) bg.Size = UDim2.new(1,0,0,302)
-    bg.Position = UDim2.new(0,0,0,36) bg.BackgroundColor3 = C.Card
-    bg.BorderSizePixel = 0 bg.ClipsDescendants = true
-    Instance.new("UICorner",bg).CornerRadius = UDim.new(0,8)
-    Instance.new("UIStroke",bg).Color = C.Border
-    local sc = Instance.new("ScrollingFrame",bg)
-    sc.Size = UDim2.new(1,-4,1,-4) sc.Position = UDim2.new(0,2,0,2)
-    sc.BackgroundTransparency = 1 sc.BorderSizePixel = 0
-    sc.ScrollBarThickness = 2 sc.ScrollBarImageColor3 = C.Accent
-    local lay = Instance.new("UIListLayout",sc)
-    lay.Padding = UDim.new(0,2) lay.SortOrder = Enum.SortOrder.LayoutOrder
-    local sendBtn = abtn(page,"📤  Force Send "..shopName.." to Discord",346,C.Accent)
-    local scanBtn = abtn(page,"🔍  Refresh Now",382,Color3.fromRGB(25,100,65),26)
-    return page, sc, statsLbl, sendBtn, scanBtn
+    local statsLbl=Instance.new("TextLabel",page)
+    statsLbl.Size=UDim2.new(1,0,0,16) statsLbl.Position=UDim2.new(0,0,0,16)
+    statsLbl.BackgroundTransparency=1 statsLbl.Text="Waiting for scan..."
+    statsLbl.TextColor3=C.Sub statsLbl.TextSize=10 statsLbl.Font=Enum.Font.Gotham
+    statsLbl.TextXAlignment=Enum.TextXAlignment.Left
+    local bg=Instance.new("Frame",page) bg.Size=UDim2.new(1,0,0,302)
+    bg.Position=UDim2.new(0,0,0,36) bg.BackgroundColor3=C.Card
+    bg.BorderSizePixel=0 bg.ClipsDescendants=true
+    Instance.new("UICorner",bg).CornerRadius=UDim.new(0,8)
+    Instance.new("UIStroke",bg).Color=C.Border
+    local sc=Instance.new("ScrollingFrame",bg)
+    sc.Size=UDim2.new(1,-4,1,-4) sc.Position=UDim2.new(0,2,0,2)
+    sc.BackgroundTransparency=1 sc.BorderSizePixel=0
+    sc.ScrollBarThickness=2 sc.ScrollBarImageColor3=C.Accent
+    local lay=Instance.new("UIListLayout",sc)
+    lay.Padding=UDim.new(0,2) lay.SortOrder=Enum.SortOrder.LayoutOrder
+    local sendBtn=abtn(page,"📤  Force Send "..shopName.." to Discord",346,C.Accent)
+    local scanBtn=abtn(page,"🔍  Refresh Now",382,Color3.fromRGB(25,100,65),26)
+    return page,sc,statsLbl,sendBtn,scanBtn
 end
 
 local seedPage,  seedSc,  seedStats,  seedSend,  seedScan  = buildShopPage("Seeds","🌱")
@@ -401,7 +439,7 @@ local gearPage,  gearSc,  gearStats,  gearSend,  gearScan  = buildShopPage("Gear
 local cratePage, crateSc, crateStats, crateSend, crateScan  = buildShopPage("Crates","📦")
 
 local function dbLookup(list, name)
-    for _, v in ipairs(list) do
+    for _,v in ipairs(list) do
         if v.name:lower()==name:lower() then return v end
     end
     return nil
@@ -409,43 +447,42 @@ end
 
 -- ── Shop scanner ───────────────────────────────────────────────────────────────
 local function scanShop(guiName, dbList)
-    local items = {}
-    local seen  = {}
+    local items={} local seen={}
     pcall(function()
-        local shopGui = pg:FindFirstChild(guiName)
+        local shopGui=pg:FindFirstChild(guiName)
         if not shopGui then return end
-        for _, v in pairs(shopGui:GetDescendants()) do
+        for _,v in pairs(shopGui:GetDescendants()) do
             if v:IsA("TextLabel") and v.Name=="Seed_Text" then
-                local grandParent = v.Parent and v.Parent.Parent
+                local grandParent=v.Parent and v.Parent.Parent
                 if grandParent and grandParent.Name=="ItemTemplate" then continue end
-                local name = v.Text:gsub("^%s+",""):gsub("%s+$","")
+                local name=v.Text:gsub("^%s+",""):gsub("%s+$","")
                 if EXCLUDED_ITEMS[name] then continue end
                 if name=="" or seen[name] then continue end
-                seen[name] = true
-                local parent    = v.Parent
-                local costLbl   = parent and parent:FindFirstChild("Cost_Text")
-                local rarityLbl = parent and parent:FindFirstChild("Rarity_Text")
-                local stockLbl  = parent and parent:FindFirstChild("Stock_Text")
-                local rawPrice  = costLbl   and costLbl.Text  or ""
-                local rarity    = rarityLbl and rarityLbl.Text or "Common"
-                local stock     = stockLbl  and stockLbl.Text  or "NO STOCK"
-                local statusWords = {"NO STOCK","x0 in Stock","SOLD OUT","OWNED","EQUIPPED","NOT OWNED","UNEQUIPPED"}
-                local inStock = true
-                for _, sw in ipairs(statusWords) do
+                seen[name]=true
+                local parent=v.Parent
+                local costLbl=parent and parent:FindFirstChild("Cost_Text")
+                local rarityLbl=parent and parent:FindFirstChild("Rarity_Text")
+                local stockLbl=parent and parent:FindFirstChild("Stock_Text")
+                local rawPrice=costLbl and costLbl.Text or ""
+                local rarity=rarityLbl and rarityLbl.Text or "Common"
+                local stock=stockLbl and stockLbl.Text or "NO STOCK"
+                local statusWords={"NO STOCK","x0 in Stock","SOLD OUT","OWNED","EQUIPPED","NOT OWNED","UNEQUIPPED"}
+                local inStock=true
+                for _,sw in ipairs(statusWords) do
                     if rawPrice:upper():find(sw:upper()) or stock:upper():find(sw:upper()) then
                         inStock=false break
                     end
                 end
                 if stock=="" then inStock=false end
-                local dbEntry  = dbLookup(dbList, name)
-                local dbPrice  = dbEntry and dbEntry.price  or "???"
-                local dbRarity = dbEntry and dbEntry.rarity or normalizeRarity(rarity)
-                local displayPrice = rawPrice
+                local dbEntry=dbLookup(dbList,name)
+                local dbPrice=dbEntry and dbEntry.price or "???"
+                local dbRarity=dbEntry and dbEntry.rarity or normalizeRarity(rarity)
+                local displayPrice=rawPrice
                 if rawPrice=="" or rawPrice:upper():find("OWNED") or rawPrice:upper():find("EQUIPPED")
                 or rawPrice:upper():find("NO STOCK") or rawPrice:upper():find("SOLD") then
-                    displayPrice = dbPrice
+                    displayPrice=dbPrice
                 end
-                table.insert(items, {
+                table.insert(items,{
                     name=name, price=displayPrice, dbPrice=dbPrice,
                     rarity=dbRarity, stock=stock, inStock=inStock,
                 })
@@ -456,74 +493,125 @@ local function scanShop(guiName, dbList)
 end
 
 -- ── Update display ─────────────────────────────────────────────────────────────
-local function updateDisplay(sc, statsLbl, items)
-    for _, child in pairs(sc:GetChildren()) do
+local function updateDisplay(sc,statsLbl,items)
+    for _,child in pairs(sc:GetChildren()) do
         if child:IsA("Frame") then child:Destroy() end
     end
-    local inCount = 0
-    local sorted  = {}
-    for _, item in ipairs(items) do table.insert(sorted, item) end
-    table.sort(sorted, function(a,b)
+    local inCount=0
+    local sorted={}
+    for _,item in ipairs(items) do table.insert(sorted,item) end
+    table.sort(sorted,function(a,b)
         if a.inStock~=b.inStock then return a.inStock end
-        local ai,bi = 99,99
-        for i, tier in ipairs(TIER_ORDER) do
+        local ai,bi=99,99
+        for i,tier in ipairs(TIER_ORDER) do
             if a.rarity==tier then ai=i end
             if b.rarity==tier then bi=i end
         end
         return ai<bi
     end)
-    for i, item in ipairs(sorted) do
-        makeItemRow(sc, item, i)
+    for i,item in ipairs(sorted) do
+        makeItemRow(sc,item,i)
         if item.inStock then inCount=inCount+1 end
     end
-    sc.CanvasSize = UDim2.new(0,0,0,#items*34+4)
-    statsLbl.Text = "✅ "..inCount.." in stock  ·  "..#items.." total  ·  "..os.date("%H:%M:%S")
-    statsLbl.TextColor3 = inCount>0 and C.Green or C.Sub
+    sc.CanvasSize=UDim2.new(0,0,0,#items*34+4)
+    statsLbl.Text="✅ "..inCount.." in stock  ·  "..#items.." total  ·  "..os.date("%H:%M:%S")
+    statsLbl.TextColor3=inCount>0 and C.Green or C.Sub
 end
 
--- ── Combined Discord payload ───────────────────────────────────────────────────
-local function buildCombinedPayload(seedItems, gearItems, crateItems, weatherList, isForce)
-    local embeds = {}
-    local function shopEmbed(shopName, icon, items)
-        local inStock = {} local topColor = RI.Common
-        for _, item in ipairs(items) do
-            if item.inStock then
-                table.insert(inStock, item)
-                for _, tier in ipairs(TIER_ORDER) do
-                    if item.rarity==tier then topColor=RI[tier] or topColor break end
-                end
-            end
+-- ── Extract stock count from stock text ───────────────────────────────────────
+local function getStockCount(stockText)
+    if not stockText then return "" end
+    local num=stockText:match("x(%d+)")
+    return num and num.."x" or ""
+end
+
+-- ── Build combined Discord payload (new format) ────────────────────────────────
+local function buildCombinedPayload(seedItems, gearItems, crateItems, weatherList)
+    -- Build Seeds section
+    local seedLines={}
+    local seedMentions={}
+    for _,item in ipairs(seedItems) do
+        if item.inStock then
+            local emoji=SEED_EMOJI[item.name] or "🌱"
+            local count=getStockCount(item.stock)
+            table.insert(seedLines, emoji.." "..count.." - "..item.name)
+            table.insert(seedMentions, "@"..item.name)
         end
-        if #inStock==0 then
-            table.insert(embeds,{title=icon.." "..shopName,description="No items currently in stock",color=RI.Common,footer={text="Grow A Garden 2 Stock"},timestamp=os.date("!%Y-%m-%dT%H:%M:%SZ")})
-            return
-        end
-        local lines={}
-        for _, item in ipairs(inStock) do
-            local emoji=RE[item.rarity] or "⚪"
-            table.insert(lines, emoji.." **"..item.name.."** `"..item.rarity.."` · "..item.price.." · "..item.stock)
-        end
-        table.insert(embeds,{title=icon.." "..shopName.." ("..#inStock.." in stock)",description=table.concat(lines,"\n"),color=topColor,footer={text="Grow A Garden 2 Stock"},timestamp=os.date("!%Y-%m-%dT%H:%M:%SZ")})
     end
-    shopEmbed("Seeds","🌱",seedItems)
-    shopEmbed("Gear","⚙️",gearItems)
-    shopEmbed("Crates","📦",crateItems)
-    if weatherList and #weatherList>0 then
-        local lines={} local topColor=11393254
-        for _, w in ipairs(weatherList) do
+
+    -- Build Gear section
+    local gearLines={}
+    local gearMentions={}
+    for _,item in ipairs(gearItems) do
+        if item.inStock then
+            local emoji=GEAR_EMOJI[item.name] or "⚙️"
+            local count=getStockCount(item.stock)
+            table.insert(gearLines, emoji.." "..count.." - "..item.name)
+            table.insert(gearMentions, "@"..item.name)
+        end
+    end
+
+    -- Build Crates section
+    local crateLines={}
+    for _,item in ipairs(crateItems) do
+        if item.inStock then
+            local count=getStockCount(item.stock)
+            table.insert(crateLines, "📦 "..count.." - "..item.name)
+        end
+    end
+
+    -- Build description
+    local desc=""
+    if #seedLines>0 then
+        desc=desc.."**SEEDS STOCK**\n"..table.concat(seedLines,"\n")
+    end
+    if #gearLines>0 then
+        if desc~="" then desc=desc.."\n\n" end
+        desc=desc.."**GEARS STOCK**\n"..table.concat(gearLines,"\n")
+    end
+    if #crateLines>0 then
+        if desc~="" then desc=desc.."\n\n" end
+        desc=desc.."**CRATES STOCK**\n"..table.concat(crateLines,"\n")
+    end
+    if #weatherList>0 then
+        local wxLines={}
+        for _,w in ipairs(weatherList) do
             local emoji=WEATHER_EMOJI[w.name] or "🌤️"
-            table.insert(lines, emoji.." **"..w.name.."** — "..w.time.." remaining")
-            if WEATHER_COLOR[w.name] then topColor=WEATHER_COLOR[w.name] end
+            table.insert(wxLines, emoji.." "..w.name.." — "..w.time)
         end
-        table.insert(embeds,{title="🌤️ Active Weather",description=table.concat(lines,"\n"),color=topColor,footer={text="Grow A Garden 2 Stock"},timestamp=os.date("!%Y-%m-%dT%H:%M:%SZ")})
+        if desc~="" then desc=desc.."\n\n" end
+        desc=desc.."**WEATHER**\n"..table.concat(wxLines,"\n")
     end
-    local hasSomething=false
-    for _, item in ipairs(seedItems)  do if item.inStock then hasSomething=true break end end
-    if not hasSomething then for _, item in ipairs(gearItems)  do if item.inStock then hasSomething=true break end end end
-    if not hasSomething then for _, item in ipairs(crateItems) do if item.inStock then hasSomething=true break end end end
+
+    if desc=="" then desc="No items currently in stock" end
+
+    -- Top color based on rarest item
+    local topColor=RI.Common
+    local allItems={}
+    for _,i in ipairs(seedItems) do if i.inStock then table.insert(allItems,i) end end
+    for _,i in ipairs(gearItems) do if i.inStock then table.insert(allItems,i) end end
+    for _,i in ipairs(crateItems) do if i.inStock then table.insert(allItems,i) end end
+    for _,item in ipairs(allItems) do
+        for _,tier in ipairs(TIER_ORDER) do
+            if item.rarity==tier then topColor=RI[tier] or topColor break end
+        end
+    end
+
+    -- Mentions line (like the screenshot)
+    local allMentions={}
+    for _,m in ipairs(seedMentions) do table.insert(allMentions,m) end
+    for _,m in ipairs(gearMentions) do table.insert(allMentions,m) end
+    local mentionContent=#allMentions>0 and table.concat(allMentions," ") or nil
+
     return HttpService:JSONEncode({
-        content=(hasSomething or isForce) and STOCK_ROLE_PING or nil,
-        embeds=embeds,
+        content=mentionContent,
+        embeds={{
+            title="🌱 Grow A Garden 2 Stocks",
+            description=desc,
+            color=topColor,
+            footer={text="Grow A Garden 2 Stock · "..os.date("%H:%M")},
+            timestamp=os.date("!%Y-%m-%dT%H:%M:%SZ"),
+        }}
     })
 end
 
@@ -535,15 +623,15 @@ local function scanWeather()
         if not weatherUI then return end
         local frame=weatherUI:FindFirstChildOfClass("Frame")
         if not frame then return end
-        for _, child in pairs(frame:GetChildren()) do
+        for _,child in pairs(frame:GetChildren()) do
             if child:IsA("ImageLabel") and child.Visible then
                 local weatherLbl=child:FindFirstChild("Weather")
                 local timeLbl=child:FindFirstChild("Time")
                 local name=weatherLbl and weatherLbl.Text or child.Name
                 local timeLeft=timeLbl and timeLbl.Text or "?"
-                local hasTime=timeLeft~="" and timeLeft~="0s" and timeLeft~="0m 0s" and timeLeft~="0m" and timeLeft~="00:00"
+                local hasTime=timeLeft~="" and timeLeft~="0s" and timeLeft~="0m 0s"
                 if name~="" and hasTime then
-                    table.insert(active, {name=name, time=timeLeft})
+                    table.insert(active,{name=name,time=timeLeft})
                 end
             end
         end
@@ -551,15 +639,14 @@ local function scanWeather()
     return active
 end
 
--- ── Weather ping — fires once per event, only resets when weather ends ─────────
 local function sendWeatherPing(weather)
     if sentWeatherPings[weather.name] then return end
-    sentWeatherPings[weather.name] = true
+    sentWeatherPings[weather.name]=true
     local ping=WEATHER_ROLE_PINGS[weather.name]
     if not ping or ping=="" or ping:find("YOUR_ROLE_ID") then return end
     local emoji=WEATHER_EMOJI[weather.name] or "🌤️"
     local color=WEATHER_COLOR[weather.name] or 11393254
-    httpPost(WEBHOOK_URL, HttpService:JSONEncode({
+    httpPost(WEBHOOK_URL,HttpService:JSONEncode({
         content=ping,
         embeds={{
             title=emoji.." "..weather.name.." Weather Alert!",
@@ -572,7 +659,7 @@ local function sendWeatherPing(weather)
 end
 
 -- ── Stored items ───────────────────────────────────────────────────────────────
-local seedItems, gearItems, crateItems = {}, {}, {}
+local seedItems,gearItems,crateItems={},{},{}
 
 -- ── Main scan ──────────────────────────────────────────────────────────────────
 local function runFullScan(force)
@@ -581,34 +668,26 @@ local function runFullScan(force)
     local newCrates = scanShop("CrateShop", CRATE_LIST)
     local weather   = scanWeather()
 
-    if #newSeeds  > 0 then seedItems  = newSeeds  updateDisplay(seedSc,  seedStats,  seedItems)  end
-    if #newGear   > 0 then gearItems  = newGear   updateDisplay(gearSc,  gearStats,  gearItems)  end
-    if #newCrates > 0 then crateItems = newCrates  updateDisplay(crateSc, crateStats, crateItems) end
+    if #newSeeds  >0 then seedItems  =newSeeds  updateDisplay(seedSc, seedStats, seedItems)  end
+    if #newGear   >0 then gearItems  =newGear   updateDisplay(gearSc, gearStats, gearItems)  end
+    if #newCrates >0 then crateItems =newCrates  updateDisplay(crateSc,crateStats,crateItems) end
 
     if WEBHOOK_URL=="" then lastScanLbl.Text="⚠️ No webhook set" return end
 
-    -- Stock diff check
-    local snapshot = {}
-    local changed  = force
-    for _, item in ipairs(seedItems)  do snapshot["s:"..item.name]=item.stock if lastStockSnapshot["s:"..item.name]~=item.stock then changed=true end end
-    for _, item in ipairs(gearItems)  do snapshot["g:"..item.name]=item.stock if lastStockSnapshot["g:"..item.name]~=item.stock then changed=true end end
-    for _, item in ipairs(crateItems) do snapshot["c:"..item.name]=item.stock if lastStockSnapshot["c:"..item.name]~=item.stock then changed=true end end
+    local snapshot={} local changed=force
+    for _,item in ipairs(seedItems)  do snapshot["s:"..item.name]=item.stock if lastStockSnapshot["s:"..item.name]~=item.stock then changed=true end end
+    for _,item in ipairs(gearItems)  do snapshot["g:"..item.name]=item.stock if lastStockSnapshot["g:"..item.name]~=item.stock then changed=true end end
+    for _,item in ipairs(crateItems) do snapshot["c:"..item.name]=item.stock if lastStockSnapshot["c:"..item.name]~=item.stock then changed=true end end
 
-    -- Weather: ping once per event; only reset lock when weather actually ends
     local wxSnapshot={}
-    for _, w in ipairs(weather) do
+    for _,w in ipairs(weather) do
         wxSnapshot[w.name]=w.time
         if not lastWeather[w.name] and not sentWeatherPings[w.name] then
-            sendWeatherPing(w)
-            task.wait(0.5)
-            changed=true
+            sendWeatherPing(w) task.wait(0.5) changed=true
         end
     end
-    -- Clear ping lock only when weather disappears
     for k in pairs(sentWeatherPings) do
-        if not wxSnapshot[k] then
-            sentWeatherPings[k]=nil
-        end
+        if not wxSnapshot[k] then sentWeatherPings[k]=nil end
     end
     for k in pairs(lastWeather) do
         if not wxSnapshot[k] then changed=true end
@@ -616,8 +695,8 @@ local function runFullScan(force)
     lastWeather=wxSnapshot
 
     if changed then
-        local payload=buildCombinedPayload(seedItems, gearItems, crateItems, weather, force)
-        if payload then httpPost(WEBHOOK_URL, payload) end
+        local payload=buildCombinedPayload(seedItems,gearItems,crateItems,weather)
+        if payload then httpPost(WEBHOOK_URL,payload) end
         lastStockSnapshot=snapshot
     end
 
@@ -625,22 +704,28 @@ local function runFullScan(force)
 end
 
 -- ── Force send per-shop ────────────────────────────────────────────────────────
-local function forceSendShop(items, shopName, icon, btn, label)
+local function forceSendShop(items,shopName,icon,btn,label)
     if WEBHOOK_URL=="" then btn.Text="⚠️ No webhook!" task.delay(2,function() btn.Text=label end) return end
     btn.Text="⏳ Sending..."
     task.spawn(function()
         local inStock={} local topColor=RI.Common
-        for _, item in ipairs(items) do if item.inStock then table.insert(inStock,item) end end
+        for _,item in ipairs(items) do if item.inStock then table.insert(inStock,item) end end
         if #inStock==0 then btn.Text="⚠️ Nothing in stock!" task.delay(2,function() btn.Text=label end) return end
         local lines={}
-        for _, item in ipairs(inStock) do
-            local emoji=RE[item.rarity] or "⚪"
-            table.insert(lines, emoji.." **"..item.name.."** `"..item.rarity.."` · "..item.price.." · "..item.stock)
-            for _, tier in ipairs(TIER_ORDER) do if item.rarity==tier then topColor=RI[tier] or topColor break end end
+        for _,item in ipairs(inStock) do
+            local emoji=(shopName=="Seeds" and SEED_EMOJI[item.name]) or (shopName=="Gear" and GEAR_EMOJI[item.name]) or "📦"
+            local count=getStockCount(item.stock)
+            table.insert(lines, emoji.." "..count.." - "..item.name)
+            for _,tier in ipairs(TIER_ORDER) do if item.rarity==tier then topColor=RI[tier] or topColor break end end
         end
-        local ok=httpPost(WEBHOOK_URL, HttpService:JSONEncode({
-            content=STOCK_ROLE_PING,
-            embeds={{title=icon.." "..shopName.." ("..#inStock.." in stock)",description=table.concat(lines,"\n"),color=topColor,footer={text="Grow A Garden 2 Stock"},timestamp=os.date("!%Y-%m-%dT%H:%M:%SZ")}}
+        local ok=httpPost(WEBHOOK_URL,HttpService:JSONEncode({
+            embeds={{
+                title=icon.." "..shopName.." Stock ("..#inStock.." in stock)",
+                description=table.concat(lines,"\n"),
+                color=topColor,
+                footer={text="Grow A Garden 2 Stock"},
+                timestamp=os.date("!%Y-%m-%dT%H:%M:%SZ")
+            }}
         }))
         btn.Text=ok and "✅ Sent!" or "❌ Failed"
         task.delay(2,function() btn.Text=label end)
@@ -685,7 +770,7 @@ wxIconRow.BackgroundTransparency=1 wxIconRow.BorderSizePixel=0
 local wxIconLayout=Instance.new("UIListLayout",wxIconRow)
 wxIconLayout.FillDirection=Enum.FillDirection.Horizontal wxIconLayout.Padding=UDim.new(0,4)
 local wxIconRefs={}
-for _, wx in ipairs({"Rain","Lightning","Bloodmoon","Snowfall","Night","Starfall","Rainbow","Midas"}) do
+for _,wx in ipairs({"Rain","Lightning","Bloodmoon","Snowfall","Night","Starfall","Rainbow","Midas"}) do
     local btn=Instance.new("TextButton",wxIconRow)
     btn.Size=UDim2.new(0,46,0,36) btn.BackgroundColor3=C.Card btn.BorderSizePixel=0
     btn.Text=(WEATHER_EMOJI[wx] or "🌤️").."\n"..wx:sub(1,5)
@@ -711,13 +796,13 @@ local function refreshWeatherDisplay()
     local lines={} local activeNames={}
     for _,w in ipairs(active) do
         local emoji=WEATHER_EMOJI[w.name] or "🌤️"
-        table.insert(lines, emoji.." **"..w.name.."**\n⏱️ "..w.time.." remaining")
+        table.insert(lines,emoji.." **"..w.name.."**\n⏱️ "..w.time.." remaining")
         activeNames[w.name]=true
     end
     wxDisplay.Text=table.concat(lines,"\n\n")
     for name,btn in pairs(wxIconRefs) do
         if activeNames[name] then
-            btn.BackgroundColor3=RARITY_BG.Legendary or C.Card btn.TextColor3=C.Gold
+            btn.BackgroundColor3=RARITY_BG.Legendary btn.TextColor3=C.Gold
             local st=btn:FindFirstChildOfClass("UIStroke") if st then st.Color=C.Gold st.Thickness=1.5 end
         else
             btn.BackgroundColor3=C.Card btn.TextColor3=C.Sub
@@ -739,7 +824,7 @@ wxSendBtn.MouseButton1Click:Connect(function()
         local lines={} local topColor=11393254
         for _,w in ipairs(active) do
             local emoji=WEATHER_EMOJI[w.name] or "🌤️"
-            table.insert(lines, emoji.." **"..w.name.."** — "..w.time.." remaining")
+            table.insert(lines,emoji.." **"..w.name.."** — "..w.time.." remaining")
             if WEATHER_COLOR[w.name] then topColor=WEATHER_COLOR[w.name] end
         end
         local ok=httpPost(WEBHOOK_URL,HttpService:JSONEncode({
@@ -782,7 +867,7 @@ local wClear=abtn(HKP,"🗑  Clear Saved Webhook",198,C.Panel,26)
 Instance.new("UIStroke",wClear).Color=C.Red
 local wInfo=Instance.new("TextLabel",HKP)
 wInfo.Size=UDim2.new(1,0,0,140) wInfo.Position=UDim2.new(0,0,0,232) wInfo.BackgroundTransparency=1
-wInfo.Text="Webhook saved locally — auto-loaded every run, no need to paste again!\n\nHow to get a webhook:\n1. Discord → channel → ⚙️ Edit → Integrations\n2. Webhooks → New Webhook → Copy URL\n3. Paste above → Save\n\nStock pings: role fires on every stock change.\nWeather pings: each weather has its own role (see top of script)."
+wInfo.Text="Webhook saved locally — auto-loaded every run!\n\nHow to get a webhook:\n1. Discord → channel → ⚙️ Edit → Integrations\n2. Webhooks → New Webhook → Copy URL\n3. Paste above → Save\n\nWeather pings: each weather has its own role ID\n(edit WEATHER_ROLE_PINGS at top of script)\n\nStock format: @item mentions + SEEDS/GEARS/CRATES sections in one embed"
 wInfo.TextColor3=C.Sub wInfo.TextSize=10 wInfo.Font=Enum.Font.Gotham
 wInfo.TextXAlignment=Enum.TextXAlignment.Left wInfo.TextWrapped=true
 
@@ -802,7 +887,6 @@ wTest.MouseButton1Click:Connect(function()
     wTest.Text="⏳ Testing..."
     task.spawn(function()
         local ok,err=httpPost(WEBHOOK_URL,HttpService:JSONEncode({
-            content=STOCK_ROLE_PING,
             embeds={{title="✅ Grow A Garden 2 Stock — Test",description="Connected!\n🌱 Seeds · ⚙️ Gear · 📦 Crates · 🌤️ Weather",color=3066993,footer={text="Grow A Garden 2 Stock"}}}
         }))
         wTest.Text=ok and "✅ Works!" or "❌ Failed"
@@ -858,7 +942,6 @@ forceBtn.MouseButton1Click:Connect(function()
     forceBtn.Text="⏳ Sending..."
     task.spawn(function()
         lastStockSnapshot={} lastWeather={}
-        -- NOTE: do NOT reset sentWeatherPings here
         runFullScan(true)
         forceBtn.Text="✅ Done!"
         task.delay(2,function() forceBtn.Text="🚀 Force Send All" end)
@@ -868,7 +951,7 @@ end)
 -- ── Auto scan loop ─────────────────────────────────────────────────────────────
 task.spawn(function()
     while true do
-        if AUTO_ENABLED then pcall(runFullScan, false) end
+        if AUTO_ENABLED then pcall(runFullScan,false) end
         task.wait(AUTO_INTERVAL)
     end
 end)
@@ -883,11 +966,10 @@ task.spawn(function()
         end
         timerLbl.Text="🔄 Restocking!"
         timerDot.BackgroundColor3=C.Gold
-        -- IMPORTANT: do NOT reset sentWeatherPings here — causes double pings
         if AUTO_ENABLED and WEBHOOK_URL~="" then
             task.wait(3)
             lastStockSnapshot={} lastWeather={}
-            pcall(runFullScan, true)
+            pcall(runFullScan,true)
         end
         task.wait(8)
         timerDot.BackgroundColor3=AUTO_ENABLED and C.Green or C.Red
@@ -911,6 +993,6 @@ do
     end)
 end
 
-task.delay(1.5, function() pcall(runFullScan, true) refreshWeatherDisplay() end)
+task.delay(1.5,function() pcall(runFullScan,true) refreshWeatherDisplay() end)
 
-print("[Grow A Garden 2 Stock v6] Loaded!")
+print("[Grow A Garden 2 Stock v7] Loaded!")
