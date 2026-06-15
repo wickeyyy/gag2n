@@ -1,5 +1,5 @@
 -- ╔═══════════════════════════════════════════════════════════════╗
--- ║     Grow A Garden 2 Stock v8                                  ║
+-- ║     Grow A Garden 2 Stock v9                                  ║
 -- ║     Auto Stock Reporter + Discord Notifier                    ║
 -- ║     Seeds · Gear · Crates · Weather · Pets                    ║
 -- ╚═══════════════════════════════════════════════════════════════╝
@@ -18,81 +18,76 @@ if pg:FindFirstChild("GAG2StockHub") then pg:FindFirstChild("GAG2StockHub"):Dest
 -- WEATHER ROLE PINGS
 -- ══════════════════════════════════════════════
 local WEATHER_ROLE_PINGS = {
-    ["Bloodmoon"] = "<@&1515606946948972645>",
-    ["Rain"]      = "<@&1515607032609247353>",
-    ["Rainbow"]   = "<@&1515607274343760004>",
-    ["Starfall"]  = "<@&1515607276679987331>",
-    ["Lightning"] = "<@&1515607365037064345>",
-    ["Snowfall"]  = "<@&1515607406581780580>",
-    ["Midas"]     = "<@&1515612301687001088>",
-    ["Night"]     = "",
+    ["Bloodmoon"]   = "<@&1515606946948972645>",
+    ["Rain"]        = "<@&1515607032609247353>",
+    ["Rainbow"]     = "<@&1515607274343760004>",
+    ["Starfall"]    = "<@&1515607276679987331>",
+    ["Lightning"]   = "<@&1515607365037064345>",
+    ["Snowfall"]    = "<@&1515607406581780580>",
+    ["Midas"]       = "<@&1515612301687001088>",
+    ["Night"]       = "",
+    ["Gold Moon"]   = "<@&YOUR_ROLE_ID>",   -- placeholder
+    ["Rainbow Moon"]= "<@&YOUR_ROLE_ID>",   -- placeholder
 }
 
 -- ══════════════════════════════════════════════
 -- PET ROLE PINGS
--- Only pings when these specific pets spawn
--- Leave as "" to not ping for that pet
 -- ══════════════════════════════════════════════
 local PET_ROLE_PINGS = {
-    ["Raccoon"]       = "<@&YOUR_ROLE_ID>",
-    ["Robin"]         = "<@&YOUR_ROLE_ID>",
-    ["Deer"]          = "<@&YOUR_ROLE_ID>",
-    ["Owl"]           = "<@&YOUR_ROLE_ID>",
-    ["Bee"]           = "<@&YOUR_ROLE_ID>",
-    ["Bunny"]         = "<@&YOUR_ROLE_ID>",
-    ["Frog"]          = "<@&YOUR_ROLE_ID>",
+    ["Raccoon"]         = "<@&YOUR_ROLE_ID>",
+    ["Robin"]           = "<@&YOUR_ROLE_ID>",
+    ["Deer"]            = "<@&YOUR_ROLE_ID>",
+    ["Owl"]             = "<@&YOUR_ROLE_ID>",
+    ["Bee"]             = "<@&YOUR_ROLE_ID>",
+    ["Bunny"]           = "<@&YOUR_ROLE_ID>",
+    ["Frog"]            = "<@&YOUR_ROLE_ID>",
     ["GoldenDragonfly"] = "<@&YOUR_ROLE_ID>",
-    ["Dragonfly"]     = "<@&YOUR_ROLE_ID>",
-    ["Monkey"]        = "<@&YOUR_ROLE_ID>",
-    ["BlackDragon"]   = "<@&YOUR_ROLE_ID>",
-    ["Unicorn"]       = "<@&YOUR_ROLE_ID>",
-    ["IceSerpent"]    = "<@&YOUR_ROLE_ID>",
+    ["Dragonfly"]       = "<@&YOUR_ROLE_ID>",
+    ["Monkey"]          = "<@&YOUR_ROLE_ID>",
+    ["BlackDragon"]     = "<@&YOUR_ROLE_ID>",
+    ["Unicorn"]         = "<@&YOUR_ROLE_ID>",
+    ["IceSerpent"]      = "<@&YOUR_ROLE_ID>",
 }
 
--- Pet emojis for display
 local PET_EMOJI = {
-    ["Raccoon"]         = "🦝",
-    ["Robin"]           = "🐦",
-    ["Deer"]            = "🦌",
-    ["Owl"]             = "🦉",
-    ["Bee"]             = "🐝",
-    ["Bunny"]           = "🐰",
-    ["Frog"]            = "🐸",
-    ["GoldenDragonfly"] = "✨",
-    ["Dragonfly"]       = "🪲",
-    ["Monkey"]          = "🐒",
-    ["BlackDragon"]     = "🐉",
-    ["Unicorn"]         = "🦄",
+    ["Raccoon"]         = "🦝", ["Robin"]      = "🐦", ["Deer"]   = "🦌",
+    ["Owl"]             = "🦉", ["Bee"]        = "🐝", ["Bunny"]  = "🐰",
+    ["Frog"]            = "🐸", ["GoldenDragonfly"] = "✨", ["Dragonfly"] = "🪲",
+    ["Monkey"]          = "🐒", ["BlackDragon"] = "🐉", ["Unicorn"] = "🦄",
     ["IceSerpent"]      = "🐍",
 }
 
 local EXCLUDED_ITEMS = {
-    ["Carrot Seed"]   = true,
+    ["Carrot Seed"] = true,
     ["Jump Mushroom"] = true,
 }
+
 -- ══════════════════════════════════════════════
+-- CONFIG
+-- ══════════════════════════════════════════════
+local WEBHOOK_FILE       = "gag2_webhook.txt"
+local PET_WEBHOOK_FILE   = "gag2_pet_webhook.txt"
+local PS_LINK_FILE       = "gag2_ps_link.txt"
+local WEBHOOK_URL        = ""
+local PET_WEBHOOK_URL    = ""
+local PS_LINK            = "" -- private server link
+local AUTO_ENABLED       = true
+local AUTO_INTERVAL      = 3  -- scan every 3 seconds
+local lastStockSnapshot  = {} -- stores {stock=string, count=number}
+local lastWeather        = {}
+local sentWeatherPings   = {}
+local activePets         = {}
+local sentPetPings       = {}
 
-local WEBHOOK_FILE      = "gag2_webhook.txt"
-local PET_WEBHOOK_FILE  = "gag2_pet_webhook.txt"
-local WEBHOOK_URL       = ""
-local PET_WEBHOOK_URL   = ""
-local AUTO_ENABLED      = true
-local AUTO_INTERVAL     = 30
-local lastStockSnapshot = {}
-local lastWeather       = {}
-local sentWeatherPings  = {}
-local activePets        = {} -- tracks currently spawned pets
-local sentPetPings      = {} -- prevents duplicate pet pings
-
+-- Load saved files
 pcall(function()
-    if isfile and isfile(WEBHOOK_FILE) then
-        WEBHOOK_URL = readfile(WEBHOOK_FILE):gsub("%s+","")
-    end
+    if isfile and isfile(WEBHOOK_FILE) then WEBHOOK_URL = readfile(WEBHOOK_FILE):gsub("%s+","") end
 end)
 pcall(function()
-    if isfile and isfile(PET_WEBHOOK_FILE) then
-        PET_WEBHOOK_URL = readfile(PET_WEBHOOK_FILE):gsub("%s+","")
-    end
+    if isfile and isfile(PET_WEBHOOK_FILE) then PET_WEBHOOK_URL = readfile(PET_WEBHOOK_FILE):gsub("%s+","") end
+end)
+pcall(function()
+    if isfile and isfile(PS_LINK_FILE) then PS_LINK = readfile(PS_LINK_FILE):gsub("%s+","") end
 end)
 
 -- ── Universal HTTP ─────────────────────────────────────────────────────────────
@@ -152,35 +147,32 @@ end
 local WEATHER_EMOJI = {
     Rain="🌧️", Lightning="⚡", Bloodmoon="🩸", Snowfall="❄️",
     Night="🌙", Starfall="⭐", Rainbow="🌈", Midas="🌕",
+    ["Gold Moon"]="🌕", ["Rainbow Moon"]="🌈",
 }
 local WEATHER_COLOR = {
     Rain=3447003, Lightning=16776960, Bloodmoon=10027008,
     Snowfall=11393254, Night=4456609, Starfall=16750592,
     Rainbow=11993012, Midas=16766720,
+    ["Gold Moon"]=16766720, ["Rainbow Moon"]=11993012,
 }
 
--- ══════════════════════════════════════════════════════════════════
--- ITEM DATABASES
--- ══════════════════════════════════════════════════════════════════
+-- ── Item databases ─────────────────────────────────────────────────────────────
 local SEED_EMOJI = {
-    ["Carrot"]="🥕", ["Strawberry"]="🍓", ["Blueberry"]="🫐",
-    ["Tulip"]="🌷", ["Tomato"]="🍅", ["Apple"]="🍎",
-    ["Bamboo"]="🎋", ["Corn"]="🌽", ["Cactus"]="🌵",
-    ["Pineapple"]="🍍", ["Mushroom"]="🍄", ["Green Bean"]="🫘",
-    ["Banana"]="🍌", ["Grape"]="🍇", ["Coconut"]="🥥",
-    ["Mango"]="🥭", ["Dragon Fruit"]="🐉", ["Acorn"]="🌰",
-    ["Cherry"]="🍒", ["Sunflower"]="🌻", ["Venus Fly Trap"]="🌿",
-    ["Pomegranate"]="🔴", ["Poison Apple"]="🍏", ["Moon Bloom"]="🌙",
-    ["Dragon's Breath"]="🔥",
+    ["Carrot"]="🥕",["Strawberry"]="🍓",["Blueberry"]="🫐",["Tulip"]="🌷",
+    ["Tomato"]="🍅",["Apple"]="🍎",["Bamboo"]="🎋",["Corn"]="🌽",
+    ["Cactus"]="🌵",["Pineapple"]="🍍",["Mushroom"]="🍄",["Green Bean"]="🫘",
+    ["Banana"]="🍌",["Grape"]="🍇",["Coconut"]="🥥",["Mango"]="🥭",
+    ["Dragon Fruit"]="🐉",["Acorn"]="🌰",["Cherry"]="🍒",["Sunflower"]="🌻",
+    ["Venus Fly Trap"]="🌿",["Pomegranate"]="🔴",["Poison Apple"]="🍏",
+    ["Moon Bloom"]="🌙",["Dragon's Breath"]="🔥",
 }
 local GEAR_EMOJI = {
-    ["Common Sprinkler"]="💧", ["Uncommon Sprinkler"]="💧",
-    ["Rare Sprinkler"]="💧", ["Legendary Sprinkler"]="💧",
-    ["Super Sprinkler"]="💧", ["Common Watering Can"]="🪣",
-    ["Super Watering Can"]="🪣", ["Trowel"]="🔧",
-    ["Rake"]="🪛", ["Crowbar"]="🔩", ["Teleporter"]="🌀",
-    ["Power Hose"]="💦", ["Freeze Ray"]="❄️",
-    ["Rainbow Carpet"]="🌈", ["Vine Wrapper"]="🌿",
+    ["Common Sprinkler"]="💧",["Uncommon Sprinkler"]="💧",
+    ["Rare Sprinkler"]="💧",["Legendary Sprinkler"]="💧",
+    ["Super Sprinkler"]="💧",["Common Watering Can"]="🪣",
+    ["Super Watering Can"]="🪣",["Trowel"]="🔧",["Rake"]="🪛",
+    ["Crowbar"]="🔩",["Teleporter"]="🌀",["Power Hose"]="💦",
+    ["Freeze Ray"]="❄️",["Rainbow Carpet"]="🌈",["Vine Wrapper"]="🌿",
     ["Basic Pot"]="🪴",
 }
 
@@ -286,7 +278,7 @@ local function tl(t,sz,col,x,y)
     l.TextXAlignment=Enum.TextXAlignment.Left
 end
 tl("🌱 Grow A Garden 2 Stock",14,C.Text,28,5)
-tl("Auto Reporter  v8",10,C.Sub,28,23)
+tl("Auto Reporter  v9",10,C.Sub,28,23)
 
 local function topBtn(xo,bg,t)
     local b=Instance.new("TextButton",TB)
@@ -337,12 +329,10 @@ local statusCard=Instance.new("Frame",SB)
 statusCard.Size=UDim2.new(1,-8,0,90) statusCard.BackgroundColor3=C.Card
 statusCard.BorderSizePixel=0 statusCard.LayoutOrder=10
 Instance.new("UICorner",statusCard).CornerRadius=UDim.new(0,7)
-
 local timerDot=Instance.new("Frame",statusCard)
 timerDot.Size=UDim2.new(0,7,0,7) timerDot.Position=UDim2.new(0,8,0,8)
 timerDot.BackgroundColor3=C.Green timerDot.BorderSizePixel=0
 Instance.new("UICorner",timerDot).CornerRadius=UDim.new(1,0)
-
 local function sideLabel(t,sz,y,col)
     local l=Instance.new("TextLabel",statusCard) l.Size=UDim2.new(1,-8,0,14)
     l.Position=UDim2.new(0,8,0,y) l.BackgroundTransparency=1 l.Text=t
@@ -352,10 +342,7 @@ end
 local timerLbl    = sideLabel("Next: --",11,18)
 local autoLbl     = sideLabel("🟢 Auto: ON",9,34,C.Green)
 local lastScanLbl = sideLabel("Starting...",8,50)
-local webhookLbl  = sideLabel(
-    WEBHOOK_URL~="" and "✅ Webhook set" or "⚠️ No webhook",
-    8,64,WEBHOOK_URL~="" and C.Green or C.Red
-)
+local webhookLbl  = sideLabel(WEBHOOK_URL~="" and "✅ Webhook set" or "⚠️ No webhook",8,64,WEBHOOK_URL~="" and C.Green or C.Red)
 
 local offBtn=Instance.new("TextButton",SB)
 offBtn.Size=UDim2.new(1,-8,0,30) offBtn.BackgroundColor3=C.Red
@@ -477,6 +464,7 @@ local function dbLookup(list,name)
     return nil
 end
 
+-- ── Shop scanner ───────────────────────────────────────────────────────────────
 local function scanShop(guiName,dbList)
     local items={} local seen={}
     pcall(function()
@@ -513,9 +501,11 @@ local function scanShop(guiName,dbList)
                 or rawPrice:upper():find("NO STOCK") or rawPrice:upper():find("SOLD") then
                     displayPrice=dbPrice
                 end
+                -- Extract stock count number
+                local stockNum = tonumber(stock:match("x(%d+)")) or 0
                 table.insert(items,{
-                    name=name,price=displayPrice,dbPrice=dbPrice,
-                    rarity=dbRarity,stock=stock,inStock=inStock,
+                    name=name, price=displayPrice, dbPrice=dbPrice,
+                    rarity=dbRarity, stock=stock, inStock=inStock, stockNum=stockNum,
                 })
             end
         end
@@ -523,6 +513,7 @@ local function scanShop(guiName,dbList)
     return items
 end
 
+-- ── Update display ─────────────────────────────────────────────────────────────
 local function updateDisplay(sc,statsLbl,items)
     for _,child in pairs(sc:GetChildren()) do
         if child:IsA("Frame") then child:Destroy() end
@@ -554,6 +545,21 @@ local function getStockCount(stockText)
     return num and num.."x" or ""
 end
 
+-- ── Build join button component ────────────────────────────────────────────────
+local function buildJoinComponent()
+    if PS_LINK == "" then return nil end
+    return {
+        type = 1,
+        components = {{
+            type = 2,
+            style = 5,
+            label = "🎮 Join Server",
+            url = PS_LINK,
+        }}
+    }
+end
+
+-- ── Build combined payload ─────────────────────────────────────────────────────
 local function buildCombinedPayload(seedItems,gearItems,crateItems,weatherList)
     local seedLines,gearLines,crateLines={},{},{}
     for _,item in ipairs(seedItems) do
@@ -596,17 +602,34 @@ local function buildCombinedPayload(seedItems,gearItems,crateItems,weatherList)
             end
         end
     end
-    return HttpService:JSONEncode({
+
+    -- Add join server button if PS_LINK is set
+    local components = {}
+    if PS_LINK ~= "" then
+        table.insert(components, {
+            type = 1,
+            components = {{
+                type = 2, style = 5,
+                label = "🎮 Join Server",
+                url = PS_LINK,
+            }}
+        })
+    end
+
+    local payload = {
         embeds={{
             title="🌱 Grow A Garden 2 Stocks",
             description=desc,
             color=topColor,
             footer={text="Grow A Garden 2 Stock · "..os.date("%H:%M")},
             timestamp=os.date("!%Y-%m-%dT%H:%M:%SZ"),
-        }}
-    })
+        }},
+    }
+    if #components > 0 then payload.components = components end
+    return HttpService:JSONEncode(payload)
 end
 
+-- ── Weather scanner ────────────────────────────────────────────────────────────
 local function scanWeather()
     local active={}
     pcall(function()
@@ -630,6 +653,7 @@ local function scanWeather()
     return active
 end
 
+-- ── Send weather ping (once per appearance) ────────────────────────────────────
 local function sendWeatherPing(weather)
     if sentWeatherPings[weather.name] then return end
     sentWeatherPings[weather.name]=true
@@ -637,7 +661,16 @@ local function sendWeatherPing(weather)
     if not ping or ping=="" or ping:find("YOUR_ROLE_ID") then return end
     local emoji=WEATHER_EMOJI[weather.name] or "🌤️"
     local color=WEATHER_COLOR[weather.name] or 11393254
-    httpPost(WEBHOOK_URL,HttpService:JSONEncode({
+
+    local components={}
+    if PS_LINK~="" then
+        table.insert(components,{
+            type=1,
+            components={{type=2,style=5,label="🎮 Join Server",url=PS_LINK}}
+        })
+    end
+
+    local payload={
         content=ping,
         embeds={{
             title=emoji.." "..weather.name.." Weather Alert!",
@@ -646,112 +679,47 @@ local function sendWeatherPing(weather)
             footer={text="Grow A Garden 2 Stock · Weather Alert"},
             timestamp=os.date("!%Y-%m-%dT%H:%M:%SZ"),
         }}
-    }))
+    }
+    if #components>0 then payload.components=components end
+    httpPost(WEBHOOK_URL,HttpService:JSONEncode(payload))
 end
 
--- ══════════════════════════════════════════════
--- PET SCANNER
--- ══════════════════════════════════════════════
-local petDisplaySc   -- scrollframe ref, set when pet page is built
-local petStatsLbl    -- stats label ref
-
-local function updatePetDisplay()
-    if not petDisplaySc then return end
-    for _,child in pairs(petDisplaySc:GetChildren()) do
-        if child:IsA("Frame") then child:Destroy() end
-    end
-    local count=0
-    for petName,_ in pairs(activePets) do
-        count=count+1
-        local row=Instance.new("Frame",petDisplaySc)
-        row.Size=UDim2.new(1,-4,0,30)
-        row.BackgroundColor3=C.RowIn
-        row.LayoutOrder=count row.BorderSizePixel=0
-        Instance.new("UICorner",row).CornerRadius=UDim.new(0,5)
-
-        local dot=Instance.new("Frame",row)
-        dot.Size=UDim2.new(0,7,0,7) dot.Position=UDim2.new(0,6,0.5,-3)
-        dot.BackgroundColor3=C.Teal dot.BorderSizePixel=0
-        Instance.new("UICorner",dot).CornerRadius=UDim.new(1,0)
-
-        local emoji=PET_EMOJI[petName] or "🐾"
-        local nameLbl=Instance.new("TextLabel",row)
-        nameLbl.Size=UDim2.new(1,-20,1,0) nameLbl.Position=UDim2.new(0,18,0,0)
-        nameLbl.BackgroundTransparency=1 nameLbl.Text=emoji.." "..petName
-        nameLbl.TextColor3=C.Text nameLbl.TextSize=11 nameLbl.Font=Enum.Font.GothamBold
-        nameLbl.TextXAlignment=Enum.TextXAlignment.Left
-
-        -- ping indicator
-        local hasPing=PET_ROLE_PINGS[petName] and not PET_ROLE_PINGS[petName]:find("YOUR_ROLE_ID")
-        local pingDot=Instance.new("Frame",row)
-        pingDot.Size=UDim2.new(0,7,0,7) pingDot.Position=UDim2.new(1,-16,0.5,-3)
-        pingDot.BackgroundColor3=hasPing and C.Gold or C.Sub pingDot.BorderSizePixel=0
-        Instance.new("UICorner",pingDot).CornerRadius=UDim.new(1,0)
-    end
-    petDisplaySc.CanvasSize=UDim2.new(0,0,0,count*34+4)
-    if petStatsLbl then
-        petStatsLbl.Text=count>0 and ("🐾 "..count.." pet(s) active  ·  "..os.date("%H:%M:%S")) or "No pets spotted yet"
-        petStatsLbl.TextColor3=count>0 and C.Teal or C.Sub
-    end
-end
-
+-- ── Pet ping ───────────────────────────────────────────────────────────────────
 local function sendPetPing(petName)
     if sentPetPings[petName] then return end
     sentPetPings[petName]=true
     local ping=PET_ROLE_PINGS[petName]
     if not ping or ping=="" or ping:find("YOUR_ROLE_ID") then return end
-    if PET_WEBHOOK_URL=="" then return end
+    local webhookUrl=PET_WEBHOOK_URL~="" and PET_WEBHOOK_URL or WEBHOOK_URL
+    if webhookUrl=="" then return end
     local emoji=PET_EMOJI[petName] or "🐾"
-    httpPost(PET_WEBHOOK_URL,HttpService:JSONEncode({
+
+    local components={}
+    if PS_LINK~="" then
+        table.insert(components,{
+            type=1,
+            components={{type=2,style=5,label="🎮 Join Server",url=PS_LINK}}
+        })
+    end
+
+    local payload={
         content=ping,
         embeds={{
             title=emoji.." Wild "..petName.." Spotted!",
-            description="A **"..petName.."** has appeared in the server!\n🏃 Go catch it before it leaves!",
+            description="A **"..petName.."** has appeared!\n🏃 Go catch it before it leaves!",
             color=3447003,
             footer={text="Grow A Garden 2 Stock · Pet Alert"},
             timestamp=os.date("!%Y-%m-%dT%H:%M:%SZ"),
         }}
-    }))
-end
-
--- Watch _PetVisualClient.Models for new pets
-local function startPetWatcher()
-    local modelsFolder=game:GetService("Workspace"):FindFirstChild("_PetVisualClient")
-    if not modelsFolder then return end
-    local models=modelsFolder:FindFirstChild("Models")
-    if not models then return end
-
-    -- scan existing pets on load
-    for _,child in pairs(models:GetChildren()) do
-        if child:IsA("Model") then
-            activePets[child.Name]=true
-            sendPetPing(child.Name)
-        end
-    end
-    updatePetDisplay()
-
-    -- watch for new pets spawning
-    models.ChildAdded:Connect(function(child)
-        if child:IsA("Model") then
-            activePets[child.Name]=true
-            updatePetDisplay()
-            sendPetPing(child.Name)
-        end
-    end)
-
-    -- watch for pets despawning
-    models.ChildRemoved:Connect(function(child)
-        if child:IsA("Model") then
-            activePets[child.Name]=nil
-            sentPetPings[child.Name]=nil -- reset so it pings again next spawn
-            updatePetDisplay()
-        end
-    end)
+    }
+    if #components>0 then payload.components=components end
+    httpPost(webhookUrl,HttpService:JSONEncode(payload))
 end
 
 -- ── Stored items ───────────────────────────────────────────────────────────────
 local seedItems,gearItems,crateItems={},{},{}
 
+-- ── Main scan — only sends when stock INCREASES (not when you buy) ─────────────
 local function runFullScan(force)
     local newSeeds  = scanShop("SeedShop",  SEED_LIST)
     local newGear   = scanShop("GearShop",  GEAR_LIST)
@@ -764,35 +732,54 @@ local function runFullScan(force)
 
     if WEBHOOK_URL=="" then lastScanLbl.Text="⚠️ No webhook set" return end
 
+    -- Stock diff — only changed=true if stock INCREASED or new item appeared
     local snapshot={} local changed=force
-    for _,item in ipairs(seedItems)  do snapshot["s:"..item.name]=item.stock if lastStockSnapshot["s:"..item.name]~=item.stock then changed=true end end
-    for _,item in ipairs(gearItems)  do snapshot["g:"..item.name]=item.stock if lastStockSnapshot["g:"..item.name]~=item.stock then changed=true end end
-    for _,item in ipairs(crateItems) do snapshot["c:"..item.name]=item.stock if lastStockSnapshot["c:"..item.name]~=item.stock then changed=true end end
+    for _,item in ipairs(seedItems) do
+        local key="s:"..item.name
+        local lastNum=lastStockSnapshot[key] and lastStockSnapshot[key].count or 0
+        snapshot[key]={stock=item.stock, count=item.stockNum}
+        -- Only trigger if stock went UP or item is newly appearing
+        if item.stockNum > lastNum then changed=true end
+    end
+    for _,item in ipairs(gearItems) do
+        local key="g:"..item.name
+        local lastNum=lastStockSnapshot[key] and lastStockSnapshot[key].count or 0
+        snapshot[key]={stock=item.stock, count=item.stockNum}
+        if item.stockNum > lastNum then changed=true end
+    end
+    for _,item in ipairs(crateItems) do
+        local key="c:"..item.name
+        local lastNum=lastStockSnapshot[key] and lastStockSnapshot[key].count or 0
+        snapshot[key]={stock=item.stock, count=item.stockNum}
+        if item.stockNum > lastNum then changed=true end
+    end
 
-    local wxSnapshot={}
-    for _,w in ipairs(weather) do
-        wxSnapshot[w.name]=w.time
-        if not lastWeather[w.name] and not sentWeatherPings[w.name] then
-            sendWeatherPing(w) task.wait(0.5) changed=true
-        end
-    end
-    for k in pairs(sentWeatherPings) do
-        if not wxSnapshot[k] then sentWeatherPings[k]=nil end
-    end
-    for k in pairs(lastWeather) do
-        if not wxSnapshot[k] then changed=true end
-    end
-    lastWeather=wxSnapshot
-
+    -- Send stock embed FIRST if changed
     if changed then
         local payload=buildCombinedPayload(seedItems,gearItems,crateItems,weather)
         if payload then httpPost(WEBHOOK_URL,payload) end
         lastStockSnapshot=snapshot
     end
 
+    -- Weather pings AFTER stock embed (only once per appearance)
+    local wxSnapshot={}
+    for _,w in ipairs(weather) do
+        wxSnapshot[w.name]=w.time
+        if not lastWeather[w.name] and not sentWeatherPings[w.name] then
+            task.wait(0.5)
+            sendWeatherPing(w)
+        end
+    end
+    -- Clear ping lock when weather ends
+    for k in pairs(sentWeatherPings) do
+        if not wxSnapshot[k] then sentWeatherPings[k]=nil end
+    end
+    lastWeather=wxSnapshot
+
     lastScanLbl.Text="Scanned: "..os.date("%H:%M:%S")
 end
 
+-- ── Force send per shop ────────────────────────────────────────────────────────
 local function forceSendShop(items,shopName,icon,btn,label)
     if WEBHOOK_URL=="" then btn.Text="⚠️ No webhook!" task.delay(2,function() btn.Text=label end) return end
     btn.Text="⏳ Sending..."
@@ -806,7 +793,11 @@ local function forceSendShop(items,shopName,icon,btn,label)
             table.insert(lines,emoji.." "..getStockCount(item.stock).." - "..item.name)
             for _,tier in ipairs(TIER_ORDER) do if item.rarity==tier then topColor=RI[tier] or topColor break end end
         end
-        local ok=httpPost(WEBHOOK_URL,HttpService:JSONEncode({
+        local components={}
+        if PS_LINK~="" then
+            table.insert(components,{type=1,components={{type=2,style=5,label="🎮 Join Server",url=PS_LINK}}})
+        end
+        local payload={
             embeds={{
                 title=icon.." "..shopName.." Stock ("..#inStock.." in stock)",
                 description=table.concat(lines,"\n"),
@@ -814,7 +805,9 @@ local function forceSendShop(items,shopName,icon,btn,label)
                 footer={text="Grow A Garden 2 Stock"},
                 timestamp=os.date("!%Y-%m-%dT%H:%M:%SZ")
             }}
-        }))
+        }
+        if #components>0 then payload.components=components end
+        local ok=httpPost(WEBHOOK_URL,HttpService:JSONEncode(payload))
         btn.Text=ok and "✅ Sent!" or "❌ Failed"
         task.delay(2,function() btn.Text=label end)
     end)
@@ -851,21 +844,24 @@ wxDisplay.BackgroundTransparency=1 wxDisplay.Text="Scanning..."
 wxDisplay.TextColor3=C.Sub wxDisplay.TextSize=12 wxDisplay.Font=Enum.Font.Gotham
 wxDisplay.TextXAlignment=Enum.TextXAlignment.Left
 wxDisplay.TextYAlignment=Enum.TextYAlignment.Top wxDisplay.TextWrapped=true
+
 local wxIconRow=Instance.new("Frame",WXP)
 wxIconRow.Size=UDim2.new(1,0,0,40) wxIconRow.Position=UDim2.new(0,0,0,234)
 wxIconRow.BackgroundTransparency=1 wxIconRow.BorderSizePixel=0
 local wxIconLayout=Instance.new("UIListLayout",wxIconRow)
-wxIconLayout.FillDirection=Enum.FillDirection.Horizontal wxIconLayout.Padding=UDim.new(0,4)
+wxIconLayout.FillDirection=Enum.FillDirection.Horizontal wxIconLayout.Padding=UDim.new(0,3)
 local wxIconRefs={}
-for _,wx in ipairs({"Rain","Lightning","Bloodmoon","Snowfall","Night","Starfall","Rainbow","Midas"}) do
+for _,wx in ipairs({"Rain","Lightning","Bloodmoon","Snowfall","Night","Starfall","Rainbow","Midas","Gold Moon","Rainbow Moon"}) do
     local btn=Instance.new("TextButton",wxIconRow)
-    btn.Size=UDim2.new(0,46,0,36) btn.BackgroundColor3=C.Card btn.BorderSizePixel=0
-    btn.Text=(WEATHER_EMOJI[wx] or "🌤️").."\n"..wx:sub(1,5)
-    btn.TextColor3=C.Sub btn.TextSize=9 btn.Font=Enum.Font.Gotham
+    btn.Size=UDim2.new(0,42,0,36) btn.BackgroundColor3=C.Card btn.BorderSizePixel=0
+    local short=wx:sub(1,5)
+    btn.Text=(WEATHER_EMOJI[wx] or "🌤️").."\n"..short
+    btn.TextColor3=C.Sub btn.TextSize=8 btn.Font=Enum.Font.Gotham
     Instance.new("UICorner",btn).CornerRadius=UDim.new(0,6)
     Instance.new("UIStroke",btn).Color=C.Border
     wxIconRefs[wx]=btn
 end
+
 local wxSendBtn=abtn(WXP,"📤  Send Weather to Discord",280,C.Accent)
 local wxScanBtn=abtn(WXP,"🔍  Refresh Weather",316,Color3.fromRGB(25,100,65),26)
 
@@ -913,9 +909,13 @@ wxSendBtn.MouseButton1Click:Connect(function()
             table.insert(lines,emoji.." **"..w.name.."** — "..w.time.." remaining")
             if WEATHER_COLOR[w.name] then topColor=WEATHER_COLOR[w.name] end
         end
-        local ok=httpPost(WEBHOOK_URL,HttpService:JSONEncode({
-            embeds={{title="🌤️ Active Weather",description=table.concat(lines,"\n"),color=topColor,footer={text="Grow A Garden 2 Stock"},timestamp=os.date("!%Y-%m-%dT%H:%M:%SZ")}}
-        }))
+        local components={}
+        if PS_LINK~="" then
+            table.insert(components,{type=1,components={{type=2,style=5,label="🎮 Join Server",url=PS_LINK}}})
+        end
+        local payload={embeds={{title="🌤️ Active Weather",description=table.concat(lines,"\n"),color=topColor,footer={text="Grow A Garden 2 Stock"},timestamp=os.date("!%Y-%m-%dT%H:%M:%SZ")}}}
+        if #components>0 then payload.components=components end
+        local ok=httpPost(WEBHOOK_URL,HttpService:JSONEncode(payload))
         wxSendBtn.Text=ok and "✅ Sent!" or "❌ Failed"
         task.delay(2,function() wxSendBtn.Text="📤  Send Weather to Discord" end)
     end)
@@ -930,11 +930,10 @@ petStats.Size=UDim2.new(1,0,0,16) petStats.Position=UDim2.new(0,0,0,16)
 petStats.BackgroundTransparency=1 petStats.Text="Watching for pets..."
 petStats.TextColor3=C.Sub petStats.TextSize=10 petStats.Font=Enum.Font.Gotham
 petStats.TextXAlignment=Enum.TextXAlignment.Left
-petStatsLbl=petStats
 
-local petBg=Instance.new("Frame",PTP) petBg.Size=UDim2.new(1,0,0,302)
-petBg.Position=UDim2.new(0,0,0,36) petBg.BackgroundColor3=C.Card
-petBg.BorderSizePixel=0 petBg.ClipsDescendants=true
+local petBg=Instance.new("Frame",PTP)
+petBg.Size=UDim2.new(1,0,0,302) petBg.Position=UDim2.new(0,0,0,36)
+petBg.BackgroundColor3=C.Card petBg.BorderSizePixel=0 petBg.ClipsDescendants=true
 Instance.new("UICorner",petBg).CornerRadius=UDim.new(0,8)
 Instance.new("UIStroke",petBg).Color=C.Border
 
@@ -944,7 +943,6 @@ petSc.BackgroundTransparency=1 petSc.BorderSizePixel=0
 petSc.ScrollBarThickness=2 petSc.ScrollBarImageColor3=C.Teal
 local petLay=Instance.new("UIListLayout",petSc)
 petLay.Padding=UDim.new(0,2) petLay.SortOrder=Enum.SortOrder.LayoutOrder
-petDisplaySc=petSc
 
 local petInfoLbl=Instance.new("TextLabel",PTP)
 petInfoLbl.Size=UDim2.new(1,0,0,30) petInfoLbl.Position=UDim2.new(0,0,0,344)
@@ -953,12 +951,80 @@ petInfoLbl.Text="🟡 dot = ping enabled  ·  ⚫ dot = no ping set  ·  Uses Pe
 petInfoLbl.TextColor3=C.Sub petInfoLbl.TextSize=9 petInfoLbl.Font=Enum.Font.Gotham
 petInfoLbl.TextXAlignment=Enum.TextXAlignment.Left petInfoLbl.TextWrapped=true
 
+local function updatePetDisplay()
+    for _,child in pairs(petSc:GetChildren()) do
+        if child:IsA("Frame") then child:Destroy() end
+    end
+    local count=0
+    for petName,_ in pairs(activePets) do
+        count=count+1
+        local row=Instance.new("Frame",petSc)
+        row.Size=UDim2.new(1,-4,0,30)
+        row.BackgroundColor3=C.RowIn row.LayoutOrder=count row.BorderSizePixel=0
+        Instance.new("UICorner",row).CornerRadius=UDim.new(0,5)
+        local dot=Instance.new("Frame",row)
+        dot.Size=UDim2.new(0,7,0,7) dot.Position=UDim2.new(0,6,0.5,-3)
+        dot.BackgroundColor3=C.Teal dot.BorderSizePixel=0
+        Instance.new("UICorner",dot).CornerRadius=UDim.new(1,0)
+        local emoji=PET_EMOJI[petName] or "🐾"
+        local nameLbl=Instance.new("TextLabel",row)
+        nameLbl.Size=UDim2.new(1,-30,1,0) nameLbl.Position=UDim2.new(0,18,0,0)
+        nameLbl.BackgroundTransparency=1 nameLbl.Text=emoji.." "..petName
+        nameLbl.TextColor3=C.Text nameLbl.TextSize=11 nameLbl.Font=Enum.Font.GothamBold
+        nameLbl.TextXAlignment=Enum.TextXAlignment.Left
+        local hasPing=PET_ROLE_PINGS[petName] and not PET_ROLE_PINGS[petName]:find("YOUR_ROLE_ID")
+        local pingDot=Instance.new("Frame",row)
+        pingDot.Size=UDim2.new(0,7,0,7) pingDot.Position=UDim2.new(1,-16,0.5,-3)
+        pingDot.BackgroundColor3=hasPing and C.Gold or C.Sub pingDot.BorderSizePixel=0
+        Instance.new("UICorner",pingDot).CornerRadius=UDim.new(1,0)
+    end
+    petSc.CanvasSize=UDim2.new(0,0,0,count*34+4)
+    petStats.Text=count>0 and ("🐾 "..count.." pet(s) active  ·  "..os.date("%H:%M:%S")) or "No pets spotted yet"
+    petStats.TextColor3=count>0 and C.Teal or C.Sub
+end
+
+local function startPetWatcher()
+    local pvc=game:GetService("Workspace"):FindFirstChild("_PetVisualClient")
+    if not pvc then return end
+    local models=pvc:FindFirstChild("Models")
+    if not models then return end
+
+    -- Scan existing pets after short delay to ensure webhooks are loaded
+    task.delay(2, function()
+        for _,child in pairs(models:GetChildren()) do
+            if child:IsA("Model") and child.Name ~= "Carry" then
+                activePets[child.Name]=true
+                sendPetPing(child.Name)
+            end
+        end
+        updatePetDisplay()
+    end)
+
+    -- Watch for new pets spawning (instant)
+    models.ChildAdded:Connect(function(child)
+        if child:IsA("Model") and child.Name ~= "Carry" then
+            activePets[child.Name]=true
+            updatePetDisplay()
+            sendPetPing(child.Name)
+        end
+    end)
+
+    -- Watch for pets despawning
+    models.ChildRemoved:Connect(function(child)
+        if child:IsA("Model") and child.Name ~= "Carry" then
+            activePets[child.Name]=nil
+            sentPetPings[child.Name]=nil -- allow ping again on next spawn
+            updatePetDisplay()
+        end
+    end)
+end
+
 -- ── WEBHOOK PAGE ───────────────────────────────────────────────────────────────
 local HKP=makePage()
-hdr(HKP,"  DISCORD WEBHOOKS",0)
+hdr(HKP,"  DISCORD WEBHOOKS + PRIVATE SERVER",0)
 
--- Stock Webhook card
-local wCard=Instance.new("Frame",HKP) wCard.Size=UDim2.new(1,0,0,110)
+-- Stock webhook
+local wCard=Instance.new("Frame",HKP) wCard.Size=UDim2.new(1,0,0,96)
 wCard.Position=UDim2.new(0,0,0,16) wCard.BackgroundColor3=C.Card wCard.BorderSizePixel=0
 Instance.new("UICorner",wCard).CornerRadius=UDim.new(0,8)
 Instance.new("UIStroke",wCard).Color=C.Border
@@ -968,107 +1034,136 @@ wHint.Text="📦 Stock + Weather Webhook:"
 wHint.TextColor3=C.Sub wHint.TextSize=11 wHint.Font=Enum.Font.GothamBold
 wHint.TextXAlignment=Enum.TextXAlignment.Left
 local wBox=Instance.new("TextBox",wCard)
-wBox.Size=UDim2.new(1,-16,0,32) wBox.Position=UDim2.new(0,8,0,28) wBox.BackgroundColor3=C.BG
+wBox.Size=UDim2.new(1,-16,0,28) wBox.Position=UDim2.new(0,8,0,26) wBox.BackgroundColor3=C.BG
 wBox.Text=WEBHOOK_URL wBox.PlaceholderText="https://discord.com/api/webhooks/..."
 wBox.TextColor3=C.Text wBox.PlaceholderColor3=C.Sub wBox.TextSize=9 wBox.Font=Enum.Font.Gotham
 wBox.TextXAlignment=Enum.TextXAlignment.Left wBox.ClearTextOnFocus=false wBox.BorderSizePixel=0
 Instance.new("UICorner",wBox).CornerRadius=UDim.new(0,5)
 Instance.new("UIPadding",wBox).PaddingLeft=UDim.new(0,6)
-local wSave=abtn(wCard,"💾  Save Stock Webhook",70,C.Green,28)
-wSave.Size=UDim2.new(1,-16,0,28) wSave.Position=UDim2.new(0,8,0,70) wSave.TextSize=11
+local wSave=abtn(wCard,"💾  Save",62,C.Green,26)
+wSave.Size=UDim2.new(1,-16,0,26) wSave.Position=UDim2.new(0,8,0,62) wSave.TextSize=11
 
 local wStatus=Instance.new("TextLabel",HKP)
-wStatus.Size=UDim2.new(1,0,0,16) wStatus.Position=UDim2.new(0,0,0,132) wStatus.BackgroundTransparency=1
+wStatus.Size=UDim2.new(1,0,0,14) wStatus.Position=UDim2.new(0,0,0,118) wStatus.BackgroundTransparency=1
 wStatus.Text=WEBHOOK_URL~="" and "✅ Stock webhook loaded!" or "No stock webhook saved."
 wStatus.TextColor3=WEBHOOK_URL~="" and C.Green or C.Sub
 wStatus.TextSize=10 wStatus.Font=Enum.Font.GothamBold wStatus.TextXAlignment=Enum.TextXAlignment.Left
 
--- Pet Webhook card
-local pCard=Instance.new("Frame",HKP) pCard.Size=UDim2.new(1,0,0,110)
-pCard.Position=UDim2.new(0,0,0,154) pCard.BackgroundColor3=C.Card pCard.BorderSizePixel=0
+-- Pet webhook
+local pCard=Instance.new("Frame",HKP) pCard.Size=UDim2.new(1,0,0,96)
+pCard.Position=UDim2.new(0,0,0,138) pCard.BackgroundColor3=C.Card pCard.BorderSizePixel=0
 Instance.new("UICorner",pCard).CornerRadius=UDim.new(0,8)
-local pCardStroke=Instance.new("UIStroke",pCard) pCardStroke.Color=C.Teal pCardStroke.Thickness=1
+local pStroke=Instance.new("UIStroke",pCard) pStroke.Color=C.Teal pStroke.Thickness=1
 local pHint=Instance.new("TextLabel",pCard)
 pHint.Size=UDim2.new(1,-16,0,18) pHint.Position=UDim2.new(0,8,0,6) pHint.BackgroundTransparency=1
-pHint.Text="🐾 Pet Alert Webhook (separate channel):"
+pHint.Text="🐾 Pet Alert Webhook:"
 pHint.TextColor3=C.Teal pHint.TextSize=11 pHint.Font=Enum.Font.GothamBold
 pHint.TextXAlignment=Enum.TextXAlignment.Left
 local pBox=Instance.new("TextBox",pCard)
-pBox.Size=UDim2.new(1,-16,0,32) pBox.Position=UDim2.new(0,8,0,28) pBox.BackgroundColor3=C.BG
+pBox.Size=UDim2.new(1,-16,0,28) pBox.Position=UDim2.new(0,8,0,26) pBox.BackgroundColor3=C.BG
 pBox.Text=PET_WEBHOOK_URL pBox.PlaceholderText="https://discord.com/api/webhooks/..."
 pBox.TextColor3=C.Text pBox.PlaceholderColor3=C.Sub pBox.TextSize=9 pBox.Font=Enum.Font.Gotham
 pBox.TextXAlignment=Enum.TextXAlignment.Left pBox.ClearTextOnFocus=false pBox.BorderSizePixel=0
 Instance.new("UICorner",pBox).CornerRadius=UDim.new(0,5)
 Instance.new("UIPadding",pBox).PaddingLeft=UDim.new(0,6)
-local pSave=abtn(pCard,"💾  Save Pet Webhook",70,C.Teal,28)
-pSave.Size=UDim2.new(1,-16,0,28) pSave.Position=UDim2.new(0,8,0,70) pSave.TextSize=11
+local pSave=abtn(pCard,"💾  Save",62,C.Teal,26)
+pSave.Size=UDim2.new(1,-16,0,26) pSave.Position=UDim2.new(0,8,0,62) pSave.TextSize=11
 
 local pStatus=Instance.new("TextLabel",HKP)
-pStatus.Size=UDim2.new(1,0,0,16) pStatus.Position=UDim2.new(0,0,0,270) pStatus.BackgroundTransparency=1
+pStatus.Size=UDim2.new(1,0,0,14) pStatus.Position=UDim2.new(0,0,0,240) pStatus.BackgroundTransparency=1
 pStatus.Text=PET_WEBHOOK_URL~="" and "✅ Pet webhook loaded!" or "No pet webhook saved."
 pStatus.TextColor3=PET_WEBHOOK_URL~="" and C.Teal or C.Sub
 pStatus.TextSize=10 pStatus.Font=Enum.Font.GothamBold pStatus.TextXAlignment=Enum.TextXAlignment.Left
 
+-- Private server link
+local psCard=Instance.new("Frame",HKP) psCard.Size=UDim2.new(1,0,0,96)
+psCard.Position=UDim2.new(0,0,0,260) psCard.BackgroundColor3=C.Card psCard.BorderSizePixel=0
+Instance.new("UICorner",psCard).CornerRadius=UDim.new(0,8)
+local psStroke=Instance.new("UIStroke",psCard) psStroke.Color=C.Gold psStroke.Thickness=1
+local psHint=Instance.new("TextLabel",psCard)
+psHint.Size=UDim2.new(1,-16,0,18) psHint.Position=UDim2.new(0,8,0,6) psHint.BackgroundTransparency=1
+psHint.Text="🎮 Private Server Link (Join Server button):"
+psHint.TextColor3=C.Gold psHint.TextSize=11 psHint.Font=Enum.Font.GothamBold
+psHint.TextXAlignment=Enum.TextXAlignment.Left
+local psBox=Instance.new("TextBox",psCard)
+psBox.Size=UDim2.new(1,-16,0,28) psBox.Position=UDim2.new(0,8,0,26) psBox.BackgroundColor3=C.BG
+psBox.Text=PS_LINK psBox.PlaceholderText="https://www.roblox.com/share?code=..."
+psBox.TextColor3=C.Text psBox.PlaceholderColor3=C.Sub psBox.TextSize=9 psBox.Font=Enum.Font.Gotham
+psBox.TextXAlignment=Enum.TextXAlignment.Left psBox.ClearTextOnFocus=false psBox.BorderSizePixel=0
+Instance.new("UICorner",psBox).CornerRadius=UDim.new(0,5)
+Instance.new("UIPadding",psBox).PaddingLeft=UDim.new(0,6)
+local psSave=abtn(psCard,"💾  Save",62,C.Gold,26)
+psSave.Size=UDim2.new(1,-16,0,26) psSave.Position=UDim2.new(0,8,0,62) psSave.TextSize=11
+psSave.TextColor3=Color3.fromRGB(0,0,0)
+
+local psStatus=Instance.new("TextLabel",HKP)
+psStatus.Size=UDim2.new(1,0,0,14) psStatus.Position=UDim2.new(0,0,0,362) psStatus.BackgroundTransparency=1
+psStatus.Text=PS_LINK~="" and "✅ Private server link saved!" or "No private server link saved."
+psStatus.TextColor3=PS_LINK~="" and C.Gold or C.Sub
+psStatus.TextSize=10 psStatus.Font=Enum.Font.GothamBold psStatus.TextXAlignment=Enum.TextXAlignment.Left
+
 -- Test/Clear buttons
-local wTest=abtn(HKP,"🧪  Test Stock Webhook",292,C.Panel,26)
+local wTest=abtn(HKP,"🧪 Test Stock",380,C.Panel,24)
+wTest.Size=UDim2.new(0.48,0,0,24) wTest.Position=UDim2.new(0,0,0,380)
 Instance.new("UIStroke",wTest).Color=C.Accent
-local pTest=abtn(HKP,"🧪  Test Pet Webhook",322,C.Panel,26)
+local pTest=abtn(HKP,"🧪 Test Pet",380,C.Panel,24)
+pTest.Size=UDim2.new(0.48,0,0,24) pTest.Position=UDim2.new(0.52,0,0,380)
 Instance.new("UIStroke",pTest).Color=C.Teal
-local wClear=abtn(HKP,"🗑  Clear Both Webhooks",352,C.Panel,26)
+local wClear=abtn(HKP,"🗑  Clear All",408,C.Panel,24)
 Instance.new("UIStroke",wClear).Color=C.Red
 
+-- Save handlers
 wSave.MouseButton1Click:Connect(function()
     local url=wBox.Text:gsub("%s+","")
     if url:find("discord.com/api/webhooks/") then
-        WEBHOOK_URL=url
-        pcall(function() writefile(WEBHOOK_FILE,url) end)
-        wStatus.Text="✅ Stock webhook saved!" wStatus.TextColor3=C.Green
+        WEBHOOK_URL=url pcall(function() writefile(WEBHOOK_FILE,url) end)
+        wStatus.Text="✅ Saved!" wStatus.TextColor3=C.Green
         webhookLbl.Text="✅ Webhook set" webhookLbl.TextColor3=C.Green
-    else
-        wStatus.Text="❌ Invalid URL" wStatus.TextColor3=C.Red
-    end
+    else wStatus.Text="❌ Invalid URL" wStatus.TextColor3=C.Red end
 end)
 pSave.MouseButton1Click:Connect(function()
     local url=pBox.Text:gsub("%s+","")
     if url:find("discord.com/api/webhooks/") then
-        PET_WEBHOOK_URL=url
-        pcall(function() writefile(PET_WEBHOOK_FILE,url) end)
-        pStatus.Text="✅ Pet webhook saved!" pStatus.TextColor3=C.Teal
+        PET_WEBHOOK_URL=url pcall(function() writefile(PET_WEBHOOK_FILE,url) end)
+        pStatus.Text="✅ Saved!" pStatus.TextColor3=C.Teal
+    else pStatus.Text="❌ Invalid URL" pStatus.TextColor3=C.Red end
+end)
+psSave.MouseButton1Click:Connect(function()
+    local link=psBox.Text:gsub("%s+","")
+    if link~="" then
+        PS_LINK=link pcall(function() writefile(PS_LINK_FILE,link) end)
+        psStatus.Text="✅ Saved! Join button active." psStatus.TextColor3=C.Gold
     else
-        pStatus.Text="❌ Invalid URL" pStatus.TextColor3=C.Red
+        PS_LINK="" pcall(function() writefile(PS_LINK_FILE,"") end)
+        psStatus.Text="Cleared." psStatus.TextColor3=C.Sub
     end
 end)
 wTest.MouseButton1Click:Connect(function()
-    if WEBHOOK_URL=="" then wStatus.Text="⚠️ Save a webhook first!" wStatus.TextColor3=C.Red return end
-    wTest.Text="⏳ Testing..."
+    if WEBHOOK_URL=="" then wStatus.Text="⚠️ Save webhook first!" wStatus.TextColor3=C.Red return end
+    wTest.Text="⏳..."
     task.spawn(function()
-        local ok,err=httpPost(WEBHOOK_URL,HttpService:JSONEncode({
-            embeds={{title="✅ Stock Webhook Test",description="Connected!\n🌱 Seeds · ⚙️ Gear · 📦 Crates · 🌤️ Weather",color=3066993,footer={text="Grow A Garden 2 Stock"}}}
-        }))
-        wTest.Text=ok and "✅ Works!" or "❌ Failed"
-        wStatus.Text=ok and "✅ Connected!" or "❌ "..tostring(err)
-        wStatus.TextColor3=ok and C.Green or C.Red
-        task.delay(3,function() wTest.Text="🧪  Test Stock Webhook" end)
+        local ok=httpPost(WEBHOOK_URL,HttpService:JSONEncode({embeds={{title="✅ Stock Webhook Test",description="Connected!\n🌱 Seeds · ⚙️ Gear · 📦 Crates · 🌤️ Weather",color=3066993,footer={text="Grow A Garden 2 Stock v9"}}}}))
+        wTest.Text=ok and "✅ OK!" or "❌ Fail"
+        task.delay(3,function() wTest.Text="🧪 Test Stock" end)
     end)
 end)
 pTest.MouseButton1Click:Connect(function()
-    if PET_WEBHOOK_URL=="" then pStatus.Text="⚠️ Save pet webhook first!" pStatus.TextColor3=C.Red return end
-    pTest.Text="⏳ Testing..."
+    local url=PET_WEBHOOK_URL~="" and PET_WEBHOOK_URL or WEBHOOK_URL
+    if url=="" then pStatus.Text="⚠️ Save webhook first!" pStatus.TextColor3=C.Red return end
+    pTest.Text="⏳..."
     task.spawn(function()
-        local ok,err=httpPost(PET_WEBHOOK_URL,HttpService:JSONEncode({
-            embeds={{title="✅ Pet Webhook Test",description="Connected!\n🐾 Pet alerts will appear here.",color=3447003,footer={text="Grow A Garden 2 Stock · Pets"}}}
-        }))
-        pTest.Text=ok and "✅ Works!" or "❌ Failed"
-        pStatus.Text=ok and "✅ Connected!" or "❌ "..tostring(err)
-        pStatus.TextColor3=ok and C.Teal or C.Red
-        task.delay(3,function() pTest.Text="🧪  Test Pet Webhook" end)
+        local ok=httpPost(url,HttpService:JSONEncode({embeds={{title="✅ Pet Webhook Test",description="Connected!\n🐾 Pet alerts will appear here.",color=3447003,footer={text="Grow A Garden 2 Stock v9"}}}}))
+        pTest.Text=ok and "✅ OK!" or "❌ Fail"
+        task.delay(3,function() pTest.Text="🧪 Test Pet" end)
     end)
 end)
 wClear.MouseButton1Click:Connect(function()
-    WEBHOOK_URL="" PET_WEBHOOK_URL="" wBox.Text="" pBox.Text=""
-    pcall(function() writefile(WEBHOOK_FILE,"") writefile(PET_WEBHOOK_FILE,"") end)
+    WEBHOOK_URL="" PET_WEBHOOK_URL="" PS_LINK=""
+    wBox.Text="" pBox.Text="" psBox.Text=""
+    pcall(function() writefile(WEBHOOK_FILE,"") writefile(PET_WEBHOOK_FILE,"") writefile(PS_LINK_FILE,"") end)
     wStatus.Text="Cleared." wStatus.TextColor3=C.Sub
     pStatus.Text="Cleared." pStatus.TextColor3=C.Sub
+    psStatus.Text="Cleared." psStatus.TextColor3=C.Sub
     webhookLbl.Text="⚠️ No webhook" webhookLbl.TextColor3=C.Red
 end)
 
@@ -1120,6 +1215,7 @@ forceBtn.MouseButton1Click:Connect(function()
     end)
 end)
 
+-- ── Auto scan loop (3 seconds) ─────────────────────────────────────────────────
 task.spawn(function()
     while true do
         if AUTO_ENABLED then pcall(runFullScan,false) end
@@ -1127,6 +1223,7 @@ task.spawn(function()
     end
 end)
 
+-- ── 5-minute restock countdown ─────────────────────────────────────────────────
 task.spawn(function()
     while true do
         local remaining=300-(os.time()%300)
@@ -1146,6 +1243,7 @@ task.spawn(function()
     end
 end)
 
+-- ── Drag ───────────────────────────────────────────────────────────────────────
 do
     local drag,ds,wp
     TB.InputBegan:Connect(function(i)
@@ -1162,10 +1260,11 @@ do
     end)
 end
 
+-- ── Initial load ───────────────────────────────────────────────────────────────
 task.delay(1.5,function()
     pcall(runFullScan,true)
     refreshWeatherDisplay()
     startPetWatcher()
 end)
 
-print("[Grow A Garden 2 Stock v8] Loaded!")
+print("[Grow A Garden 2 Stock v9] Loaded!")
